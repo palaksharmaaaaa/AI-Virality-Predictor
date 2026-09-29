@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        AI Virality Predictor
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
+
+</head>
+
+<body>
+
+<div class="navbar">
+
+    <div class="logo">
+        AI Virality Predictor
+    </div>
+
+    <div class="nav-links">
+
+        <a href="{{ url_for('home') }}">
+            Home
+        </a>
+
+        <a href="{{ url_for('history') }}">
+            History
+        </a>
+
+    </div>
+
+</div>
+
+
+<main class="container">
+
+    <section class="hero">
+
+        <h1>
+            AI Virality Predictor
+        </h1>
+
+        <p>
+            Analyze video characteristics and estimate
+            performance potential using computer vision
+            and machine learning.
+        </p>
+
+    </section>
+
+
+    {% with messages = get_flashed_messages() %}
+
+        {% if messages %}
+
+            <div class="alert">
+
+                {% for message in messages %}
+
+                    <p>
+                        {{ message }}
+                    </p>
+
+                {% endfor %}
+
+            </div>
+
+        {% endif %}
+
+    {% endwith %}
+
+
+    <section class="upload-card">
+
+        <form
+            action="{{ url_for('analyze') }}"
+            method="POST"
+            enctype="multipart/form-data"
+            id="uploadForm"
+        >
+
+            <label
+                for="video"
+                class="upload-label"
+            >
+                Select Video
+            </label>
+
+            <input
+                id="video"
+                name="video"
+                type="file"
+                accept="video/mp4,video/mov,video/avi,video/x-matroska"
+                required
+            >
+
+            <p
+                id="fileName"
+                class="file-name"
+            >
+                No video selected
+            </p>
+
+            <button
+                type="submit"
+                class="primary-button"
+                id="analyzeButton"
+            >
+                Analyze Video
+            </button>
+
+        </form>
+
+    </section>
+
+
+    <section class="features-section">
+
+        <h2>
+            What will be analyzed?
+        </h2>
+
+        <div class="feature-grid">
+
+            <div class="feature-card">
+                <h3>Motion</h3>
+                <p>
+                    Measures visual movement across sampled frames.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <h3>Scene Changes</h3>
+                <p>
+                    Detects significant visual transitions.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <h3>Hook</h3>
+                <p>
+                    Evaluates visual activity during the opening.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <h3>Faces</h3>
+                <p>
+                    Detects faces across sampled frames.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <h3>Brightness</h3>
+                <p>
+                    Measures average visual brightness.
+                </p>
+            </div>
+
+            <div class="feature-card">
+                <h3>Pacing</h3>
+                <p>
+                    Estimates pacing using scene transitions.
+                </p>
+            </div>
+
+        </div>
+
+    </section>
+
+</main>
+
+
+<script
+    src="{{ url_for('static', filename='js/app.js') }}"
+></script>
+
+</body>
+
+</html>

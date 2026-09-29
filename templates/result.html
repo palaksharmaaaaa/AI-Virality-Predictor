@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        Analysis Result
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
+
+</head>
+
+<body>
+
+<div class="navbar">
+
+    <div class="logo">
+        AI Virality Predictor
+    </div>
+
+    <div class="nav-links">
+
+        <a href="{{ url_for('home') }}">
+            Home
+        </a>
+
+        <a href="{{ url_for('history') }}">
+            History
+        </a>
+
+    </div>
+
+</div>
+
+
+<main class="container">
+
+    <h1>
+        Video Analysis Result
+    </h1>
+
+    <p class="filename">
+        {{ filename }}
+    </p>
+
+
+    {% if thumbnail %}
+
+    <div class="thumbnail-container">
+
+        <img
+            src="{{ thumbnail }}"
+            alt="Video thumbnail"
+            class="thumbnail"
+        >
+
+    </div>
+
+    {% endif %}
+
+
+    <section class="score-card">
+
+        <h2>
+            Virality Score
+        </h2>
+
+        <div class="score">
+
+            {{ prediction.virality_score }}
+
+            <span>/ 100</span>
+
+        </div>
+
+        <h3>
+            {{ prediction.prediction_label }}
+        </h3>
+
+        <p>
+
+            Prediction mode:
+
+            <strong>
+                {{ prediction.prediction_mode }}
+            </strong>
+
+        </p>
+
+        {% if prediction.predicted_views is not none %}
+
+        <p>
+
+            Estimated views:
+
+            <strong>
+                {{ "{:,.0f}".format(prediction.predicted_views) }}
+            </strong>
+
+        </p>
+
+        {% endif %}
+
+        {% if not prediction.is_model_available %}
+
+        <div class="warning">
+
+            <strong>
+                Demo mode
+            </strong>
+
+            <p>
+                No trained ML model was found. The score shown
+                here is based on extracted video characteristics
+                and is not validated model performance.
+            </p>
+
+        </div>
+
+        {% endif %}
+
+    </section>
+
+
+    <section>
+
+        <h2>
+            Extracted Features
+        </h2>
+
+        <div class="metrics-grid">
+
+            <div class="metric">
+
+                <span>
+                    Duration
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(features.duration) }} sec
+                </strong>
+
+            </div>
+
+
+            <div class="metric">
+
+                <span>
+                    FPS
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(features.fps) }}
+                </strong>
+
+            </div>
+
+
+            <div class="metric">
+
+                <span>
+                    Resolution
+                </span>
+
+                <strong>
+                    {{ features.width }} × {{ features.height }}
+                </strong>
+
+            </div>
+
+
+            <div class="metric">
+
+                <span>
+                    Motion
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(features.motion_score) }}
+                </strong>
+
+            </div>
+
+
+            <div class="metric">
+
+                <span>
+                    Scene Changes
+                </span>
+
+                <strong>
+                    {{ features.scene_changes }}
+                </strong>
+
+            </div>
+
+
+            <div class="metric">
+
+                <span>
+                    Hook Intensity
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(features.hook_intensity) }}
+                </strong>
+
+            </div>
+
+
+            <div class="metric">
+
+                <span>
+                    Face Count
+                </span>
+
+                <strong>
+                    {{ features.face_count }}
+                </strong>
+
+            </div>
+
+
+            <div class="metric">
+
+                <span>
+                    Face Presence
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(features.face_presence_ratio) }}%
+                </strong>
+
+            </div>
+
+
+            <div class="metric">
+
+                <span>
+                    Brightness
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(features.brightness) }}
+                </strong>
+
+            </div>
+
+
+            <div class="metric">
+
+                <span>
+                    Contrast
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(features.contrast) }}
+                </strong>
+
+            </div>
+
+
+            <div class="metric">
+
+                <span>
+                    Pacing
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(features.pacing_score) }}
+                </strong>
+
+            </div>
+
+        </div>
+
+    </section>
+
+
+    <section>
+
+        <h2>
+            Recommendations
+        </h2>
+
+        <div class="recommendations">
+
+            {% for recommendation in recommendations %}
+
+                <div class="recommendation">
+
+                    {{ recommendation }}
+
+                </div>
+
+            {% else %}
+
+                <p>
+                    No recommendations available.
+                </p>
+
+            {% endfor %}
+
+        </div>
+
+    </section>
+
+
+    <div class="actions">
+
+        <a
+            href="{{ url_for('home') }}"
+            class="button"
+        >
+            Analyze Another Video
+        </a>
+
+        <a
+            href="{{ url_for('history') }}"
+            class="button secondary"
+        >
+            View History
+        </a>
+
+        <a
+            href="{{ url_for('report', analysis_id=analysis_id) }}"
+            class="button secondary"
+        >
+            Generate PDF Report
+        </a>
+
+    </div>
+
+</main>
+
+</body>
+
+</html>

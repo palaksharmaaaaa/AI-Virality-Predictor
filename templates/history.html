@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>
+        Analysis History
+    </title>
+
+    <link
+        rel="stylesheet"
+        href="{{ url_for('static', filename='css/style.css') }}"
+    >
+
+</head>
+
+<body>
+
+<div class="navbar">
+
+    <div class="logo">
+        AI Virality Predictor
+    </div>
+
+    <div class="nav-links">
+
+        <a href="{{ url_for('home') }}">
+            Home
+        </a>
+
+        <a href="{{ url_for('history') }}">
+            History
+        </a>
+
+    </div>
+
+</div>
+
+
+<main class="container">
+
+    <h1>
+        Analysis History
+    </h1>
+
+
+    {% if analyses %}
+
+    <div class="table-wrapper">
+
+        <table>
+
+            <thead>
+
+                <tr>
+
+                    <th>
+                        ID
+                    </th>
+
+                    <th>
+                        Video
+                    </th>
+
+                    <th>
+                        Date
+                    </th>
+
+                    <th>
+                        Score
+                    </th>
+
+                    <th>
+                        Prediction
+                    </th>
+
+                    <th>
+                        Action
+                    </th>
+
+                </tr>
+
+            </thead>
+
+
+            <tbody>
+
+                {% for analysis in analyses %}
+
+                <tr>
+
+                    <td>
+                        {{ analysis.id }}
+                    </td>
+
+                    <td>
+                        {{ analysis.filename }}
+                    </td>
+
+                    <td>
+                        {{ analysis.timestamp }}
+                    </td>
+
+                    <td>
+                        {{ "%.2f"|format(analysis.virality_score) }}
+                    </td>
+
+                    <td>
+                        {{ analysis.prediction_label }}
+                    </td>
+
+                    <td>
+
+                        <a
+                            href="{{ url_for(
+                                'analysis_detail',
+                                analysis_id=analysis.id
+                            ) }}"
+                        >
+                            View
+                        </a>
+
+                        |
+
+                        <a
+                            href="{{ url_for(
+                                'report',
+                                analysis_id=analysis.id
+                            ) }}"
+                        >
+                            PDF
+                        </a>
+
+                    </td>
+
+                </tr>
+
+                {% endfor %}
+
+            </tbody>
+
+        </table>
+
+    </div>
+
+    {% else %}
+
+    <div class="empty-state">
+
+        <h2>
+            No analyses yet
+        </h2>
+
+        <p>
+            Upload a video to create your first analysis.
+        </p>
+
+        <a
+            href="{{ url_for('home') }}"
+            class="button"
+        >
+            Analyze Video
+        </a>
+
+    </div>
+
+    {% endif %}
+
+</main>
+
+</body>
+
+</html>
