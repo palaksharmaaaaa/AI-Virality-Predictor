@@ -11,7 +11,6 @@ from flask import (
     send_file,
     flash
 )
-import random
 from config.config import (
     UPLOAD_FOLDER,
     THUMBNAIL_FOLDER,
@@ -127,8 +126,7 @@ def analyze():
 
         prediction = predict_virality(features)
         # Demo estimated engagement values
-        views = random.randint(10_000, 1_000_000)
-        likes = random.randint(500, int(views * 0.15))
+      
 
         # -------------------------------------------------
         # Recommendations
@@ -227,18 +225,35 @@ def analysis_detail(analysis_id):
     if analysis is None:
         return "Analysis not found", 404
 
+    features = {
+    "duration": analysis["duration"],
+    "fps": analysis["fps"],
+    "width": analysis["width"],
+    "height": analysis["height"],
+    "motion_score": analysis["motion_score"],
+    "scene_changes": analysis["scene_changes"],
+    "hook_intensity": analysis["hook_intensity"],
+    "face_count": analysis["face_count"],
+    "face_presence_ratio": analysis["face_presence_ratio"],
+    "brightness": analysis["brightness"],
+    "contrast": analysis["contrast"],
+    "pacing_score": analysis["pacing_score"]
+}
+
     return render_template(
         "result.html",
         analysis_id=analysis["id"],
         filename=analysis["filename"],
-        features=dict(analysis),
+        features=features,
         prediction={
+            "predicted_views": analysis.get(
+                "predicted_views",
+                0
+            ),
             "virality_score": analysis["virality_score"],
             "prediction_label": analysis["prediction_label"],
-            "estimated_views": views,
-            "estimated_likes": likes,       
-            "model_prediction": analysis["virality_score"],
-            "is_model_available": True
+            "is_model_available": True,
+            "prediction_mode": "ML Model"
         },
         recommendations=[],
         thumbnail=None

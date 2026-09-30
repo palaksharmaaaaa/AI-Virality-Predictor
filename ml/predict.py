@@ -1,5 +1,5 @@
 import os
-
+import numpy as np
 import pandas as pd
 import joblib
 
@@ -488,14 +488,23 @@ def predict_virality(features):
     # Predict views
     # -----------------------------------------------------
 
-    predicted_views = model.predict(
+    # -----------------------------------------------------
+    # Predict log-transformed views
+    # -----------------------------------------------------
+
+    predicted_log_views = model.predict(
         scaled_features
+    )
+
+    # Convert log(views) back to actual views
+    predicted_views = np.expm1(
+        predicted_log_views[0]
     )
 
     predicted_views = float(
         max(
             0,
-            predicted_views[0]
+            predicted_views
         )
     )
 
@@ -509,6 +518,9 @@ def predict_virality(features):
     virality_score = calculate_virality_score(
         predicted_views
     )
+    prediction_label = get_prediction_label(
+        virality_score
+)
 
     return {
         "predicted_views": predicted_views,
@@ -517,6 +529,26 @@ def predict_virality(features):
         "prediction_mode": "ML Model"
     }
 
+# =========================================================
+# PREDICTION LABEL
+# =========================================================
+
+def get_prediction_label(score):
+
+    if score >= 80:
+        return "Very High Potential"
+
+    elif score >= 60:
+        return "High Potential"
+
+    elif score >= 40:
+        return "Moderate Potential"
+
+    elif score >= 20:
+        return "Low Potential"
+
+    else:
+        return "Very Low Potential"
 
 # =========================================================
 # VIRALITY SCORE 

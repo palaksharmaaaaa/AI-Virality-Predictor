@@ -1,6 +1,8 @@
 import os
 
 import pandas as pd
+import numpy as np
+import json
 import joblib
 
 from sklearn.ensemble import RandomForestRegressor
@@ -71,9 +73,9 @@ def train_model(training_data_path):
         FEATURE_COLUMNS
     ].astype(float)
 
-    y = dataframe[
-        "views"
-    ].astype(float)
+    y = np.log1p(
+    dataframe["views"].astype(float)
+)
 
     X_train, X_test, y_train, y_test = (
         train_test_split(
@@ -107,24 +109,38 @@ def train_model(training_data_path):
         y_train
     )
 
-    predictions = model.predict(
+    # ---------------------------------------------------------
+    # EVALUATION
+    # ---------------------------------------------------------
+
+    predicted_log_views = model.predict(
         X_test_scaled
     )
 
+    # Convert predictions back to actual views
+    predictions = np.expm1(
+        predicted_log_views
+    )
+
+    # Convert actual test values back to views
+    actual_views = np.expm1(
+        y_test
+    )
+
     mae = mean_absolute_error(
-        y_test,
+        actual_views,
         predictions
     )
 
     rmse = mean_squared_error(
-        y_test,
+        actual_views,
         predictions
     ) ** 0.5
 
     r2 = r2_score(
-        y_test,
+        actual_views,
         predictions
-    )
+)
 
     os.makedirs(
         os.path.dirname(MODEL_PATH),
@@ -140,6 +156,48 @@ def train_model(training_data_path):
         scaler,
         SCALER_PATH
     )
+
+     # ---------------------------------------------------------
+    # SAVE TRAINING METADATA
+    # ---------------------------------------------------------
+
+    metadata = {
+        "model_type": "RandomForestRegressor",
+        "n_estimators": 300,
+        "max_depth": 12,
+        "min_samples_leaf": 2,
+        "random_state": 42,
+
+        "target": "log1p(views)",
+        "prediction_target": "views",
+
+        "feature_columns": FEATURE_COLUMNS,
+        "training_rows": len(dataframe),
+
+        "mae": float(mae),
+        "rmse": float(rmse),
+        "r2": float(r2)
+    }
+
+    metadata_path = os.path.join(
+        os.path.dirname(MODEL_PATH),
+        "model_metadata.json"
+    )
+
+    with open(
+        metadata_path,
+        "w",
+        encoding="utf-8"
+    ) as file:
+
+        json.dump(
+            metadata,
+            file,
+            indent=4
+        )
+
+    print("\nMetadata saved:")
+    print(metadata_path)
 
     metrics = {
 

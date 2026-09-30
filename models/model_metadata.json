@@ -1,0 +1,27 @@
+{
+    "model_type": "RandomForestRegressor",
+    "n_estimators": 300,
+    "max_depth": 12,
+    "min_samples_leaf": 2,
+    "random_state": 42,
+    "target": "log1p(views)",
+    "prediction_target": "views",
+    "feature_columns": [
+        "duration",
+        "fps",
+        "width",
+        "height",
+        "motion_score",
+        "scene_changes",
+        "hook_intensity",
+        "face_count",
+        "face_presence_ratio",
+        "brightness",
+        "contrast",
+        "pacing_score"
+    ],
+    "training_rows": 19,
+    "mae": 595484.6595710069,
+    "rmse": 769698.8161389877,
+    "r2": -5.041799831479952
+}
