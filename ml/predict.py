@@ -1,633 +1,578 @@
+
+import json
 import os
+import sys
+
+import joblib
 import numpy as np
 import pandas as pd
-import joblib
 
-from sklearn.ensemble import RandomForestRegressor
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import (
-    mean_absolute_error,
-    mean_squared_error,
-    r2_score
-)
-from sklearn.preprocessing import StandardScaler
 
-from config.config import (
-    MODEL_PATH,
-    SCALER_PATH
+# ============================================================
+# PROJECT PATHS
+# ============================================================
+
+PROJECT_ROOT = os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))
 )
 
-from ml.features import FEATURE_COLUMNS
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 
-# =========================================================
-# TRAIN MODEL
-# =========================================================
+# ============================================================
+# MODEL PATH
+# ============================================================
 
-# def train_model(training_data_path):
+MODEL_PATH = os.path.join(
+    PROJECT_ROOT,
+    "models",
+    "virality_model.joblib"
+)
 
-#     if not os.path.exists(training_data_path):
-#         raise FileNotFoundError(
-#             f"Training data not found: {training_data_path}"
-#         )
-
-#     # dataframe = pd.read_csv(training_data_path)
-#     dataframe = pd.read_csv(training_data_path, low_memory=False)
-
-#     # Remove accidental repeated header rows
-#     if "video_id" in dataframe.columns:
-#         dataframe = dataframe[
-#             dataframe["video_id"].astype(str).str.strip().ne("video_id")
-#         ]
-
-#     # Convert all ML columns and target to numeric
-#     required_columns = FEATURE_COLUMNS + ["views"]
-
-#     for column in required_columns:
-#         dataframe[column] = pd.to_numeric(
-#             dataframe[column],
-#             errors="coerce"
-#         )
-
-#     # Remove invalid rows
-#     dataframe = dataframe.dropna(subset=required_columns).reset_index(drop=True)
-
-#     required_columns = FEATURE_COLUMNS + ["views"]
-
-#     missing_columns = [
-#         column
-#         for column in required_columns
-#         if column not in dataframe.columns
-#     ]
-
-#     if missing_columns:
-#         raise ValueError(
-#             "Missing required columns: "
-#             + ", ".join(missing_columns)
-#         )
-
-#     dataframe = dataframe.dropna(
-#         subset=required_columns
-#     )
-
-#     if len(dataframe) < 10:
-#         raise ValueError(
-#             "At least 10 valid training rows are recommended."
-#         )
-
-#     X = dataframe[
-#         FEATURE_COLUMNS
-#     ].astype(float)
-
-#     y = dataframe[
-#         "views"
-#     ].astype(float)
-
-#     X_train, X_test, y_train, y_test = train_test_split(
-#         X,
-#         y,
-#         test_size=0.2,
-#         random_state=42
-#     )
-
-#     scaler = StandardScaler()
-
-#     X_train_scaled = scaler.fit_transform(
-#         X_train
-#     )
-
-#     X_test_scaled = scaler.transform(
-#         X_test
-#     )
-
-#     model = RandomForestRegressor(
-#         n_estimators=300,
-#         random_state=42,
-#         n_jobs=-1,
-#         max_depth=12,
-#         min_samples_leaf=2
-#     )
-
-#     model.fit(
-#         X_train_scaled,
-#         y_train
-#     )
-
-#     predictions = model.predict(
-#         X_test_scaled
-#     )
-
-#     mae = mean_absolute_error(
-#         y_test,
-#         predictions
-#     )
-
-#     rmse = mean_squared_error(
-#         y_test,
-#         predictions
-#     ) ** 0.5
-
-#     r2 = r2_score(
-#         y_test,
-#         predictions
-#     )
-
-#     model_directory = os.path.dirname(
-#         MODEL_PATH
-#     )
-
-#     if model_directory:
-#         os.makedirs(
-#             model_directory,
-#             exist_ok=True
-#         )
-
-#     scaler_directory = os.path.dirname(
-#         SCALER_PATH
-#     )
-
-#     if scaler_directory:
-#         os.makedirs(
-#             scaler_directory,
-#             exist_ok=True
-#         )
-
-#     joblib.dump(
-#         model,
-#         MODEL_PATH
-#     )
-
-#     joblib.dump(
-#         scaler,
-#         SCALER_PATH
-#     )
-
-#     metrics = {
-#         "mae": float(mae),
-#         "rmse": float(rmse),
-#         "r2": float(r2),
-#         "training_rows": int(len(dataframe))
-#     }
-
-#     print("\nModel trained successfully.")
-
-#     print(
-#         f"MAE  : {mae:.2f}"
-#     )
-
-#     print(
-#         f"RMSE : {rmse:.2f}"
-#     )
-
-#     print(
-#         f"R2   : {r2:.4f}"
-#     )
-
-#     return metrics
+METADATA_PATH = os.path.join(
+    PROJECT_ROOT,
+    "models",
+    "model_metadata.json"
+)
 
 
+# ============================================================
+# PREDICTOR CLASS
+# ============================================================
 
-def train_model(training_data_path):
-    if not os.path.exists(training_data_path):
-        raise FileNotFoundError(
-            f"Training data not found at: {training_data_path}"
+class ViralityPredictor:
+
+    def __init__(
+        self,
+        model_path=MODEL_PATH,
+        metadata_path=METADATA_PATH
+    ):
+        self.model_path = model_path
+        self.metadata_path = metadata_path
+
+        self.pipeline = None
+        self.metadata = {}
+
+        self.load_model()
+        self.load_metadata()
+
+
+    # ========================================================
+    # LOAD MODEL
+    # ========================================================
+
+    def load_model(self):
+
+        if not os.path.exists(self.model_path):
+            raise FileNotFoundError(
+                "Trained virality model was not found.\n"
+                f"Expected location:\n{self.model_path}\n\n"
+                "Train the model first using:\n"
+                "python ml/train.py"
+            )
+
+        try:
+            self.pipeline = joblib.load(
+                self.model_path
+            )
+
+        except Exception as e:
+            raise RuntimeError(
+                "Unable to load the virality model.\n"
+                f"Error: {e}"
+            )
+
+
+    # ========================================================
+    # LOAD METADATA
+    # ========================================================
+
+    def load_metadata(self):
+
+        if not os.path.exists(
+            self.metadata_path
+        ):
+            self.metadata = {}
+            return
+
+        try:
+            with open(
+                self.metadata_path,
+                "r",
+                encoding="utf-8"
+            ) as file:
+
+                self.metadata = json.load(file)
+
+        except Exception:
+            self.metadata = {}
+
+
+    # ========================================================
+    # PREPARE FEATURES
+    # ========================================================
+
+   
+    def prepare_features(
+        self,
+        features
+    ):
+
+        if features is None:
+            raise ValueError(
+                "Prediction features cannot be None."
+            )
+
+        # ========================================================
+        # ACCEPT DIFFERENT FEATURE FORMATS
+        # ========================================================
+
+        # Dictionary
+        if isinstance(features, dict):
+
+            df = pd.DataFrame(
+                [features]
+            )
+
+        # DataFrame
+        elif isinstance(features, pd.DataFrame):
+
+            df = features.copy()
+
+        # Series
+        elif isinstance(features, pd.Series):
+
+            df = pd.DataFrame(
+                [features.to_dict()]
+            )
+
+        # List / tuple
+        elif isinstance(features, (list, tuple)):
+
+            df = pd.DataFrame(
+                features
+            )
+
+        else:
+
+            # Try converting unknown feature objects
+            try:
+
+                if hasattr(features, "to_dict"):
+
+                    converted = features.to_dict()
+
+                    if isinstance(converted, dict):
+
+                        df = pd.DataFrame(
+                            [converted]
+                        )
+
+                    else:
+
+                        df = pd.DataFrame(
+                            converted
+                        )
+
+                else:
+
+                    df = pd.DataFrame(
+                        [features]
+                    )
+
+            except Exception as e:
+
+                raise TypeError(
+                    "Unable to convert prediction "
+                    "features into a DataFrame.\n"
+                    f"Received type: {type(features)}\n"
+                    f"Error: {e}"
+                )
+
+
+        # ========================================================
+        # EXPECTED MODEL FEATURES
+        # ========================================================
+
+        try:
+
+            from ml.feature_builder import (
+                FeatureBuilder
+            )
+
+            expected_columns = (
+                FeatureBuilder.NUMERIC_FEATURES
+                +
+                FeatureBuilder.CATEGORICAL_FEATURES
+            )
+
+        except Exception as e:
+
+            raise RuntimeError(
+                "Unable to load FeatureBuilder.\n"
+                f"Error: {e}"
+            )
+
+
+        # ========================================================
+        # ADD MISSING FEATURES
+        # ========================================================
+
+        for column in expected_columns:
+
+            if column not in df.columns:
+
+                df[column] = np.nan
+
+
+        # ========================================================
+        # KEEP ONLY MODEL FEATURES
+        # ========================================================
+
+        df = df[
+            expected_columns
+        ].copy()
+
+
+        # ========================================================
+        # CLEAN NUMERIC VALUES
+        # ========================================================
+
+        for column in FeatureBuilder.NUMERIC_FEATURES:
+
+            if column in df.columns:
+
+                df[column] = pd.to_numeric(
+                    df[column],
+                    errors="coerce"
+                )
+
+
+        # ========================================================
+        # RETURN
+        # ========================================================
+
+        return df
+
+
+
+
+    # ========================================================
+    # RAW REACH PREDICTION
+    # ========================================================
+
+    def predict_reach(
+        self,
+        features
+    ):
+
+        X = self.prepare_features(
+            features
         )
 
-    dataframe = pd.read_csv(
-        training_data_path,
-        low_memory=False
-    )
+        try:
 
-    print(f"Original training data shape: {dataframe.shape}")
+            predicted_log = self.pipeline.predict(
+                X
+            )
 
-    required_columns = FEATURE_COLUMNS + ["views"]
+        except Exception as e:
 
-    # Check required columns
-    missing_columns = [
-        column
-        for column in required_columns
-        if column not in dataframe.columns
-    ]
+            raise RuntimeError(
+                "Prediction failed.\n"
+                f"Error: {e}"
+            )
 
-    if missing_columns:
-        raise ValueError(
-            f"Missing required columns: {missing_columns}"
+
+        # ----------------------------------------------------
+        # Model was trained using log1p(target)
+        # ----------------------------------------------------
+
+        predicted_reach = np.expm1(
+            predicted_log
         )
 
-    # ---------------------------------------------------------
-    # REMOVE ACCIDENTAL REPEATED HEADER ROWS
-    # ---------------------------------------------------------
-
-    if "video_id" in dataframe.columns:
-        dataframe = dataframe[
-            dataframe["video_id"].astype(str).str.strip() != "video_id"
-        ]
-
-    # ---------------------------------------------------------
-    # CONVERT ML FEATURES TO NUMERIC
-    # Invalid text becomes NaN
-    # ---------------------------------------------------------
-
-    for column in required_columns:
-        dataframe[column] = pd.to_numeric(
-            dataframe[column],
-            errors="coerce"
+        predicted_reach = np.maximum(
+            predicted_reach,
+            0
         )
 
-    # ---------------------------------------------------------
-    # REMOVE INVALID ROWS
-    # ---------------------------------------------------------
 
-    before_cleaning = len(dataframe)
-
-    dataframe = dataframe.dropna(
-        subset=required_columns
-    ).reset_index(drop=True)
-
-    removed_rows = before_cleaning - len(dataframe)
-
-    print(f"Removed invalid rows: {removed_rows}")
-    print(f"Valid training rows: {len(dataframe)}")
-
-    # ---------------------------------------------------------
-    # MINIMUM DATA CHECK
-    # ---------------------------------------------------------
-
-    if len(dataframe) < 19:
-        raise ValueError(
-            f"Only {len(dataframe)} valid training rows found. "
-            "At least 19 valid rows are required."
+        return float(
+            predicted_reach[0]
         )
 
-    # ---------------------------------------------------------
-    # FEATURES / TARGET
-    # ---------------------------------------------------------
 
-    X = dataframe[FEATURE_COLUMNS].astype(float)
-    y = dataframe["views"].astype(float)
+    # ========================================================
+    # VIRALITY SCORE
+    # ========================================================
 
-    print("\nTraining features:")
-    print(X.columns.tolist())
+    def calculate_virality_score(
+        self,
+        predicted_reach,
+        features
+    ):
 
-    print("\nTarget statistics:")
-    print(y.describe())
-
-    # ---------------------------------------------------------
-    # TRAIN / TEST SPLIT
-    # ---------------------------------------------------------
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
-        test_size=0.2,
-        random_state=42
-    )
-
-    # ---------------------------------------------------------
-    # SCALING
-    # ---------------------------------------------------------
-
-    scaler = StandardScaler()
-
-    X_train_scaled = scaler.fit_transform(X_train)
-    X_test_scaled = scaler.transform(X_test)
-
-    # ---------------------------------------------------------
-    # MODEL
-    # ---------------------------------------------------------
-
-    model = RandomForestRegressor(
-        n_estimators=300,
-        random_state=42,
-        n_jobs=-1,
-        max_depth=12,
-        min_samples_leaf=2
-    )
-
-    model.fit(
-        X_train_scaled,
-        y_train
-    )
-
-    # ---------------------------------------------------------
-    # EVALUATION
-    # ---------------------------------------------------------
-
-    predictions = model.predict(X_test_scaled)
-
-    mae = mean_absolute_error(
-        y_test,
-        predictions
-    )
-
-    rmse = mean_squared_error(
-        y_test,
-        predictions
-    ) ** 0.5
-
-    r2 = r2_score(
-        y_test,
-        predictions
-    )
-
-    print("\n==============================")
-    print("MODEL TRAINING COMPLETE")
-    print("==============================")
-    print(f"MAE  : {mae:.2f}")
-    print(f"RMSE : {rmse:.2f}")
-    print(f"R2   : {r2:.4f}")
-
-    # ---------------------------------------------------------
-    # SAVE MODEL
-    # ---------------------------------------------------------
-
-    os.makedirs(
-        os.path.dirname(MODEL_PATH),
-        exist_ok=True
-    )
-
-    joblib.dump(
-        model,
-        MODEL_PATH
-    )
-
-    joblib.dump(
-        scaler,
-        SCALER_PATH
-    )
-
-    print("\nModel saved:")
-    print(MODEL_PATH)
-
-    print("\nScaler saved:")
-    print(SCALER_PATH)
-
-    return {
-        "model": model,
-        "scaler": scaler,
-        "mae": mae,
-        "rmse": rmse,
-        "r2": r2,
-        "training_rows": len(dataframe)
-    }
-
-
-# =========================================================
-# LOAD MODEL
-# =========================================================
-
-def load_model():
-
-    if not os.path.exists(MODEL_PATH):
-        raise FileNotFoundError(
-            "Trained model not found. "
-            "Please train the model first."
-        )
-
-    if not os.path.exists(SCALER_PATH):
-        raise FileNotFoundError(
-            "Scaler not found. "
-            "Please train the model first."
-        )
-
-    model = joblib.load(
-        MODEL_PATH
-    )
-
-    scaler = joblib.load(
-        SCALER_PATH
-    )
-
-    return model, scaler
-
-
-# =========================================================
-# PREDICT VIRALITY
-# =========================================================
-
-def predict_virality(features):
-
-    """
-    Predict expected video views / virality score.
-
-    Parameters
-    ----------
-    features : dict or pandas.DataFrame
-
-        Video features generated by extract_video_features().
-
-    Returns
-    -------
-    dict
-
-        Contains predicted views and a normalized
+        """
+        Converts predicted reach into a 0-100
         virality score.
-    """
 
-    model, scaler = load_model()
+        This is a product score, not a direct
+        platform algorithm score.
+        """
 
-    # -----------------------------------------------------
-    # Convert input into DataFrame
-    # -----------------------------------------------------
+        if predicted_reach <= 0:
+            return 0.0
 
-    if isinstance(features, dict):
 
-        input_data = {
-            column: features.get(column, 0.0)
-            for column in FEATURE_COLUMNS
+        # ----------------------------------------------------
+        # Extract followers
+        # ----------------------------------------------------
+
+        if isinstance(
+            features,
+            pd.DataFrame
+        ):
+
+            followers = features.iloc[0].get(
+                "followers",
+                0
+            )
+
+        else:
+
+            followers = features.get(
+                "followers",
+                0
+            )
+
+
+        try:
+            followers = float(
+                followers or 0
+            )
+
+        except Exception:
+            followers = 0
+
+
+        # ----------------------------------------------------
+        # Reach multiplier
+        # ----------------------------------------------------
+
+        if followers > 0:
+
+            reach_ratio = (
+                predicted_reach
+                / followers
+            )
+
+        else:
+
+            reach_ratio = 0
+
+
+        # ----------------------------------------------------
+        # Convert reach ratio to score
+        # ----------------------------------------------------
+
+        if reach_ratio >= 20:
+            score = 100
+
+        elif reach_ratio >= 10:
+            score = 90
+
+        elif reach_ratio >= 5:
+            score = 80
+
+        elif reach_ratio >= 3:
+            score = 70
+
+        elif reach_ratio >= 2:
+            score = 60
+
+        elif reach_ratio >= 1:
+            score = 50
+
+        elif reach_ratio >= 0.5:
+            score = 35
+
+        else:
+            score = 20
+
+
+        return float(
+            min(
+                max(score, 0),
+                100
+            )
+        )
+
+
+    # ========================================================
+    # COMPLETE PREDICTION
+    # ========================================================
+
+    def predict(
+        self,
+        features
+    ):
+
+        predicted_reach = (
+            self.predict_reach(
+                features
+            )
+        )
+
+        virality_score = (
+            self.calculate_virality_score(
+                predicted_reach,
+                features
+            )
+        )
+
+
+        # ----------------------------------------------------
+        # Estimated views
+        # ----------------------------------------------------
+
+        estimated_views = int(
+            round(
+                predicted_reach
+            )
+        )
+
+
+        # ----------------------------------------------------
+        # Model information
+        # ----------------------------------------------------
+
+        model_type = self.metadata.get(
+            "model_type",
+            "RandomForestRegressor"
+        )
+
+        training_rows = self.metadata.get(
+            "training_rows",
+            None
+        )
+
+        r2 = self.metadata.get(
+            "metrics",
+            {}
+        ).get(
+            "r2",
+            None
+        )
+
+
+        return {
+
+            "predicted_reach":
+                round(
+                    predicted_reach,
+                    2
+                ),
+
+            "estimated_views":
+                estimated_views,
+
+            "virality_score":
+                round(
+                    virality_score,
+                    2
+                ),
+
+            "model_type":
+                model_type,
+
+            "training_rows":
+                training_rows,
+
+            "model_r2":
+                r2,
+
+            "is_model_available":
+                True
         }
 
-        dataframe = pd.DataFrame(
-            [input_data]
-        )
 
-    elif isinstance(features, pd.DataFrame):
+# ============================================================
+# SIMPLE FUNCTION API
+# ============================================================
 
-        dataframe = features.copy()
-
-        missing_columns = [
-            column
-            for column in FEATURE_COLUMNS
-            if column not in dataframe.columns
-        ]
-
-        if missing_columns:
-            raise ValueError(
-                "Missing prediction features: "
-                + ", ".join(missing_columns)
-            )
-
-        dataframe = dataframe[
-            FEATURE_COLUMNS
-        ]
-
-    else:
-
-        raise TypeError(
-            "features must be a dictionary "
-            "or pandas DataFrame."
-        )
-
-    # -----------------------------------------------------
-    # Ensure numeric values
-    # -----------------------------------------------------
-
-    dataframe = dataframe[
-        FEATURE_COLUMNS
-    ].astype(float)
-
-    # -----------------------------------------------------
-    # Scale features
-    # -----------------------------------------------------
-
-    scaled_features = scaler.transform(
-        dataframe
-    )
-
-    # -----------------------------------------------------
-    # Predict views
-    # -----------------------------------------------------
-
-    # -----------------------------------------------------
-    # Predict log-transformed views
-    # -----------------------------------------------------
-
-    predicted_log_views = model.predict(
-        scaled_features
-    )
-
-    # Convert log(views) back to actual views
-    predicted_views = np.expm1(
-        predicted_log_views[0]
-    )
-
-    predicted_views = float(
-        max(
-            0,
-            predicted_views
-        )
-    )
-
-    # -----------------------------------------------------
-    # Convert prediction into a 0-100 score
-    #
-    # This is NOT the model's actual probability.
-    # It is a presentation score based on predicted views.
-    # -----------------------------------------------------
-
-    virality_score = calculate_virality_score(
-        predicted_views
-    )
-    prediction_label = get_prediction_label(
-        virality_score
-)
-
-    return {
-        "predicted_views": predicted_views,
-        "virality_score": virality_score,
-        "is_model_available": True,
-        "prediction_mode": "ML Model"
-    }
-
-# =========================================================
-# PREDICTION LABEL
-# =========================================================
-
-def get_prediction_label(score):
-
-    if score >= 80:
-        return "Very High Potential"
-
-    elif score >= 60:
-        return "High Potential"
-
-    elif score >= 40:
-        return "Moderate Potential"
-
-    elif score >= 20:
-        return "Low Potential"
-
-    else:
-        return "Very Low Potential"
-
-# =========================================================
-# VIRALITY SCORE 
-# =========================================================
-
-def calculate_virality_score(predicted_views):
-
+def predict_virality(
+    features
+):
     """
-    Convert predicted views into a 0-100 presentation score.
+    Simple helper function for app.py.
 
-    The score is logarithmically scaled so that very large
-    view counts do not completely dominate the UI.
+    Example:
+
+        result = predict_virality(
+            feature_dict
+        )
     """
 
-    import math
+    predictor = ViralityPredictor()
 
-    if predicted_views <= 0:
-        return 0.0
-
-    # Reference points:
-    # 1,000 views  -> approximately low score
-    # 1,000,000 views -> high score
-
-    minimum_views = 1_000
-    reference_views = 1_000_000
-
-    log_min = math.log10(
-        minimum_views
+    return predictor.predict(
+        features
     )
 
-    log_reference = math.log10(
-        reference_views
-    )
 
-    log_views = math.log10(
-        max(
-            predicted_views,
-            minimum_views
-        )
-    )
-
-    score = (
-        (log_views - log_min)
-        /
-        (log_reference - log_min)
-    ) * 100
-
-    return round(
-    float(
-        max(
-            0,
-            min(
-                100,
-                score
-            )
-        )
-    ),
-    2
-)
-
-
-# =========================================================
-# RUN DIRECTLY
-# =========================================================
+# ============================================================
+# COMMAND LINE TEST
+# ============================================================
 
 if __name__ == "__main__":
 
-    BASE_DIR = os.path.dirname(
-        os.path.dirname(
-            os.path.abspath(__file__)
+    print("\n" + "=" * 70)
+    print(
+        "AI VIRALITY PREDICTOR - "
+        "PREDICTION TEST"
+    )
+    print("=" * 70)
+
+
+    try:
+
+        predictor = ViralityPredictor()
+
+        print("\nModel loaded successfully.")
+
+        print(
+            "\nModel:",
+            predictor.metadata.get(
+                "model_type",
+                "Unknown"
+            )
         )
-    )
 
-    training_file = os.path.join(
-        BASE_DIR,
-        "data",
-        "training_data.csv"
-    )
+        print(
+            "Training rows:",
+            predictor.metadata.get(
+                "training_rows",
+                "Unknown"
+            )
+        )
 
-    train_model(
-        training_file
-    )
+        print(
+            "\nPrediction system is ready."
+        )
+
+        print(
+            "\nUse predict_virality(features)"
+            " from app.py."
+        )
+
+
+    except Exception as e:
+
+        print(
+            "\nERROR:"
+        )
+
+        print(e)
+

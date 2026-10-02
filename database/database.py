@@ -10,10 +10,13 @@ from config.config import DATABASE_PATH
 
 def get_connection():
 
-    os.makedirs(
-        os.path.dirname(DATABASE_PATH),
-        exist_ok=True
-    )
+    db_directory = os.path.dirname(DATABASE_PATH)
+
+    if db_directory:
+        os.makedirs(
+            db_directory,
+            exist_ok=True
+        )
 
     connection = sqlite3.connect(
         DATABASE_PATH
@@ -73,8 +76,17 @@ def initialize_database():
     """)
 
     connection.commit()
-
     connection.close()
+
+
+# ---------------------------------------------------------
+# Compatibility function
+# ---------------------------------------------------------
+# app.py uses init_db()
+# ---------------------------------------------------------
+
+def init_db():
+    initialize_database()
 
 
 # ---------------------------------------------------------
@@ -141,7 +153,6 @@ def save_analysis(
     analysis_id = cursor.lastrowid
 
     connection.commit()
-
     connection.close()
 
     return analysis_id
@@ -167,6 +178,16 @@ def get_analysis(analysis_id):
     connection.close()
 
     return result
+
+
+# ---------------------------------------------------------
+# Compatibility function
+# ---------------------------------------------------------
+# app.py uses get_analysis_by_id()
+# ---------------------------------------------------------
+
+def get_analysis_by_id(analysis_id):
+    return get_analysis(analysis_id)
 
 
 # ---------------------------------------------------------

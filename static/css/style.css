@@ -1,83 +1,154 @@
+/* =========================================================
+   GLOBAL
+   ========================================================= */
+
 * {
     box-sizing: border-box;
 }
 
+html {
+    scroll-behavior: smooth;
+}
+
 body {
     margin: 0;
-    font-family: Arial, Helvetica, sans-serif;
+
+    font-family:
+        Arial,
+        Helvetica,
+        sans-serif;
+
     background: #f4f6f9;
+
     color: #202124;
 }
 
 
-/* ---------------------------------------------------------
-   Navbar
---------------------------------------------------------- */
+/* =========================================================
+   NAVBAR
+   ========================================================= */
 
 .navbar {
+    width: 100%;
+
     background: #111827;
+
     color: white;
+
     padding: 18px 40px;
 
     display: flex;
+
     justify-content: space-between;
+
     align-items: center;
 }
 
 .logo {
     font-size: 21px;
+
     font-weight: bold;
 }
 
 .nav-links {
     display: flex;
+
+    align-items: center;
+
     gap: 25px;
 }
 
 .nav-links a {
     color: white;
+
     text-decoration: none;
+
+    font-size: 15px;
+}
+
+.nav-links a:hover {
+    opacity: 0.75;
 }
 
 
-/* ---------------------------------------------------------
-   Container
---------------------------------------------------------- */
+/* =========================================================
+   MAIN CONTAINER
+   ========================================================= */
 
 .container {
+    width: 100%;
+
     max-width: 1100px;
+
     margin: 50px auto;
+
     padding: 20px;
 }
 
 
-/* ---------------------------------------------------------
-   Hero
---------------------------------------------------------- */
+/* =========================================================
+   HERO
+   ========================================================= */
 
 .hero {
     text-align: center;
+
     margin-bottom: 40px;
 }
 
 .hero h1 {
+    margin: 0 0 12px;
+
     font-size: 42px;
-    margin-bottom: 12px;
+
+    line-height: 1.2;
 }
 
 .hero p {
+    max-width: 850px;
+
+    margin: 0 auto;
+
     color: #6b7280;
+
     font-size: 18px;
+
+    line-height: 1.6;
 }
 
 
-/* ---------------------------------------------------------
-   Upload
---------------------------------------------------------- */
+/* =========================================================
+   ALERT
+   ========================================================= */
+
+.alert {
+    background: #fee2e2;
+
+    color: #991b1b;
+
+    padding: 15px 18px;
+
+    margin-bottom: 20px;
+
+    border-radius: 8px;
+
+    border: 1px solid #fecaca;
+}
+
+.alert p {
+    margin: 5px 0;
+}
+
+
+/* =========================================================
+   UPLOAD CARD
+   ========================================================= */
 
 .upload-card {
     background: white;
+
     padding: 40px;
+
     border-radius: 15px;
 
     box-shadow:
@@ -86,39 +157,320 @@ body {
     text-align: center;
 }
 
+
+/* =========================================================
+   FORM SECTION
+   ========================================================= */
+
+.form-section {
+    margin-bottom: 25px;
+}
+
+.form-section h2 {
+    margin: 0 0 25px;
+
+    font-size: 22px;
+}
+
+
+/* =========================================================
+   VIDEO UPLOAD
+   ========================================================= */
+
 .upload-label {
     display: block;
+
+    margin-bottom: 15px;
+
     font-size: 20px;
+
     font-weight: bold;
-    margin-bottom: 20px;
 }
 
 input[type="file"] {
     display: block;
-    margin: auto;
+
+    width: 100%;
+
+    max-width: 500px;
+
+    margin: 0 auto;
+
     padding: 10px;
+
+    border: 1px solid #d1d5db;
+
+    border-radius: 8px;
+
+    background: #ffffff;
+
+    cursor: pointer;
 }
 
 .file-name {
+    margin-top: 10px;
+
     color: #6b7280;
+
+    font-size: 14px;
 }
 
 
-/* ---------------------------------------------------------
-   Buttons
---------------------------------------------------------- */
+/* =========================================================
+   NORMAL FORM ELEMENTS
+   ========================================================= */
+
+.form-group {
+    margin-bottom: 20px;
+
+    text-align: left;
+}
+
+.form-group label {
+    display: block;
+
+    margin-bottom: 7px;
+
+    color: #374151;
+
+    font-weight: bold;
+}
+
+.form-group input,
+.form-group select {
+    width: 100%;
+
+    padding: 12px;
+
+    border: 1px solid #d1d5db;
+
+    border-radius: 8px;
+
+    background: white;
+
+    font-size: 15px;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+    outline: none;
+
+    border-color: #111827;
+
+    box-shadow:
+        0 0 0 2px rgba(17, 24, 39, 0.08);
+}
+
+.form-group small {
+    display: block;
+
+    margin-top: 6px;
+
+    color: #6b7280;
+
+    font-size: 12px;
+}
+
+.form-row {
+    display: grid;
+
+    grid-template-columns: 1fr 1fr;
+
+    gap: 20px;
+}
+
+
+/* =========================================================
+   SOCIAL MEDIA SECTION
+   ========================================================= */
+
+.social-media-section {
+    width: 100%;
+
+    margin: 25px 0;
+
+    background: white;
+
+    border: 1px solid #e5e7eb;
+
+    border-radius: 12px;
+
+    overflow: hidden;
+
+    text-align: left;
+
+    box-shadow:
+        0 3px 12px rgba(0, 0, 0, 0.05);
+}
+
+
+/* =========================================================
+   SOCIAL MEDIA HEADER
+   ========================================================= */
+
+.social-media-section summary {
+    display: flex;
+
+    align-items: center;
+
+    width: 100%;
+
+    padding: 18px 20px;
+
+    cursor: pointer;
+
+    list-style: none;
+
+    user-select: none;
+
+    font-size: 17px;
+
+    font-weight: bold;
+}
+
+
+/* Remove Chrome default arrow */
+
+.social-media-section summary::-webkit-details-marker {
+    display: none;
+}
+
+
+/* Custom arrow */
+
+.social-media-section summary::before {
+    content: "▶";
+
+    display: inline-block;
+
+    margin-right: 10px;
+
+    font-size: 11px;
+
+    transition:
+        transform 0.2s ease;
+}
+
+
+/* Arrow rotates when opened */
+
+.social-media-section[open] summary::before {
+    transform: rotate(90deg);
+}
+
+
+/* Title */
+
+.social-title {
+    flex: 1;
+
+    color: #202124;
+
+    font-size: 17px;
+
+    font-weight: bold;
+}
+
+
+/* Hint */
+
+.social-hint {
+    color: #6b7280;
+
+    font-size: 13px;
+
+    font-weight: normal;
+}
+
+
+/* =========================================================
+   SOCIAL MEDIA FIELDS
+   ========================================================= */
+
+.social-media-fields {
+    display: grid;
+
+    grid-template-columns: 1fr 1fr;
+
+    gap: 18px;
+
+    padding: 5px 20px 25px;
+}
+
+.social-media-fields .form-group {
+    display: flex;
+
+    flex-direction: column;
+
+    margin-bottom: 0;
+
+    text-align: left;
+}
+
+.social-media-fields label {
+    margin-bottom: 7px;
+
+    color: #374151;
+
+    font-weight: bold;
+}
+
+.social-media-fields input,
+.social-media-fields select {
+    width: 100%;
+
+    padding: 11px 12px;
+
+    border: 1px solid #d1d5db;
+
+    border-radius: 7px;
+
+    background: white;
+
+    font-size: 14px;
+}
+
+.social-media-fields input:focus,
+.social-media-fields select:focus {
+    outline: none;
+
+    border-color: #111827;
+
+    box-shadow:
+        0 0 0 2px rgba(17, 24, 39, 0.08);
+}
+
+.social-media-fields small {
+    margin-top: 6px;
+
+    color: #6b7280;
+
+    font-size: 12px;
+}
+
+
+/* Hashtag field uses full width */
+
+.social-media-fields .full-width {
+    grid-column: 1 / -1;
+}
+
+
+/* =========================================================
+   BUTTONS
+   ========================================================= */
 
 button,
 .button {
     display: inline-block;
 
-    margin-top: 20px;
-
     padding: 12px 22px;
 
-    border-radius: 8px;
+    margin-top: 20px;
 
     border: none;
+
+    border-radius: 8px;
 
     background: #111827;
 
@@ -126,9 +478,9 @@ button,
 
     text-decoration: none;
 
-    cursor: pointer;
-
     font-size: 15px;
+
+    cursor: pointer;
 }
 
 button:hover,
@@ -136,20 +488,32 @@ button:hover,
     opacity: 0.9;
 }
 
+button:disabled {
+    opacity: 0.6;
+
+    cursor: not-allowed;
+}
+
+.primary-button {
+    background: #111827;
+}
+
 .secondary {
     background: #4b5563;
 }
 
 
-/* ---------------------------------------------------------
-   Features
---------------------------------------------------------- */
+/* =========================================================
+   FEATURES SECTION
+   ========================================================= */
 
 .features-section {
     margin-top: 50px;
 }
 
 .features-section h2 {
+    margin-bottom: 25px;
+
     text-align: center;
 }
 
@@ -163,8 +527,6 @@ button:hover,
         );
 
     gap: 20px;
-
-    margin-top: 25px;
 }
 
 .feature-card {
@@ -175,52 +537,47 @@ button:hover,
     border-radius: 12px;
 
     box-shadow:
-        0 3px 12px
-        rgba(0, 0, 0, 0.06);
+        0 3px 12px rgba(0, 0, 0, 0.06);
 }
 
 .feature-card h3 {
     margin-top: 0;
+
+    margin-bottom: 12px;
+}
+
+.feature-card p {
+    margin-bottom: 0;
+
+    color: #6b7280;
+
+    line-height: 1.6;
 }
 
 
-/* ---------------------------------------------------------
-   Alerts
---------------------------------------------------------- */
-
-.alert {
-    background: #fee2e2;
-
-    color: #991b1b;
-
-    padding: 15px;
-
-    border-radius: 8px;
-
-    margin-bottom: 20px;
-}
+/* =========================================================
+   WARNING
+   ========================================================= */
 
 .warning {
     background: #fff7ed;
 
-    border-radius: 10px;
+    color: #9a3412;
 
     padding: 15px;
 
     margin-top: 20px;
 
-    color: #9a3412;
+    border-radius: 10px;
 }
 
 
-/* ---------------------------------------------------------
-   Score
---------------------------------------------------------- */
+/* =========================================================
+   SCORE CARD
+   ========================================================= */
 
 .score-card {
     background: white;
-
-    text-align: center;
 
     padding: 40px;
 
@@ -228,52 +585,52 @@ button:hover,
 
     border-radius: 15px;
 
+    text-align: center;
+
     box-shadow:
-        0 5px 20px
-        rgba(0, 0, 0, 0.08);
+        0 5px 20px rgba(0, 0, 0, 0.08);
 }
 
 .score {
+    margin: 20px 0;
+
     font-size: 64px;
 
     font-weight: bold;
-
-    margin: 20px 0;
 }
 
 .score span {
-    font-size: 22px;
-
     color: #6b7280;
+
+    font-size: 22px;
 }
 
 
-/* ---------------------------------------------------------
-   Thumbnail
---------------------------------------------------------- */
+/* =========================================================
+   THUMBNAIL
+   ========================================================= */
 
 .thumbnail-container {
-    text-align: center;
-
     margin: 30px 0;
+
+    text-align: center;
 }
 
 .thumbnail {
-    max-width: 600px;
-
     width: 100%;
+
+    max-width: 600px;
 
     border-radius: 12px;
 
     box-shadow:
-        0 5px 20px
-        rgba(0, 0, 0, 0.15);
+        0 5px 20px rgba(0, 0, 0, 0.15);
 }
 
 
-/* ---------------------------------------------------------
-   Metrics
---------------------------------------------------------- */
+/* =========================================================
+   METRICS
+   ========================================================= */
 
 .metrics-grid {
     display: grid;
@@ -295,16 +652,15 @@ button:hover,
     border-radius: 10px;
 
     box-shadow:
-        0 3px 10px
-        rgba(0, 0, 0, 0.05);
+        0 3px 10px rgba(0, 0, 0, 0.05);
 }
 
 .metric span {
     display: block;
 
-    color: #6b7280;
-
     margin-bottom: 8px;
+
+    color: #6b7280;
 }
 
 .metric strong {
@@ -312,9 +668,9 @@ button:hover,
 }
 
 
-/* ---------------------------------------------------------
-   Recommendations
---------------------------------------------------------- */
+/* =========================================================
+   RECOMMENDATIONS
+   ========================================================= */
 
 .recommendations {
     display: flex;
@@ -334,29 +690,28 @@ button:hover,
     border-radius: 6px;
 
     box-shadow:
-        0 2px 8px
-        rgba(0, 0, 0, 0.05);
+        0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
 
-/* ---------------------------------------------------------
-   Actions
---------------------------------------------------------- */
+/* =========================================================
+   ACTIONS
+   ========================================================= */
 
 .actions {
-    margin-top: 35px;
-
     display: flex;
+
+    flex-wrap: wrap;
 
     gap: 15px;
 
-    flex-wrap: wrap;
+    margin-top: 35px;
 }
 
 
-/* ---------------------------------------------------------
-   Table
---------------------------------------------------------- */
+/* =========================================================
+   TABLE
+   ========================================================= */
 
 .table-wrapper {
     overflow-x: auto;
@@ -386,24 +741,35 @@ th {
 }
 
 
-/* ---------------------------------------------------------
-   Empty state
---------------------------------------------------------- */
+/* =========================================================
+   EMPTY STATE
+   ========================================================= */
 
 .empty-state {
-    text-align: center;
-
     background: white;
 
     padding: 50px;
 
     border-radius: 12px;
+
+    text-align: center;
 }
 
 
-/* ---------------------------------------------------------
-   Responsive
---------------------------------------------------------- */
+/* =========================================================
+   LOADING
+   ========================================================= */
+
+.loading {
+    opacity: 0.6;
+
+    pointer-events: none;
+}
+
+
+/* =========================================================
+   RESPONSIVE
+   ========================================================= */
 
 @media (max-width: 700px) {
 
@@ -411,16 +777,58 @@ th {
         padding: 15px 20px;
     }
 
+    .nav-links {
+        gap: 12px;
+    }
+
     .container {
         margin-top: 25px;
+
+        padding: 15px;
     }
 
     .hero h1 {
         font-size: 32px;
     }
 
+    .hero p {
+        font-size: 16px;
+    }
+
+    .upload-card {
+        padding: 25px 20px;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+    }
+
     .score {
         font-size: 48px;
+    }
+
+    .social-media-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .social-media-fields .full-width {
+        grid-column: auto;
+    }
+
+    .social-media-section summary {
+        font-size: 15px;
+    }
+
+    .social-title {
+        font-size: 15px;
+    }
+
+    .social-hint {
+        font-size: 11px;
+    }
+
+    .feature-grid {
+        grid-template-columns: 1fr;
     }
 
 }

@@ -1,19 +1,13 @@
 <!DOCTYPE html>
-
 <html lang="en">
 
 <head>
 
     <meta charset="UTF-8">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>
-        Analysis Result
-    </title>
+    <title>Analysis Result - AI Virality Predictor</title>
 
     <link
         rel="stylesheet"
@@ -22,7 +16,11 @@
 
 </head>
 
+
 <body>
+
+
+<!-- ================= NAVBAR ================= -->
 
 <div class="navbar">
 
@@ -32,8 +30,8 @@
 
     <div class="nav-links">
 
-        <a href="{{ url_for('home') }}">
-            Home
+        <a href="{{ url_for('index') }}">
+            index
         </a>
 
         <a href="{{ url_for('history') }}">
@@ -45,86 +43,162 @@
 </div>
 
 
-<main class="container">
 
-    <h1>
-        Video Analysis Result
-    </h1>
+<!-- ================= MAIN ================= -->
 
-    <p class="filename">
-        {{ filename }}
-    </p>
+<main class="container result-page">
 
+
+    <!-- PAGE HEADER -->
+
+    <div class="result-header">
+
+        <div>
+
+            <h1>
+                Video Analysis Result
+            </h1>
+
+            <p class="filename">
+                {{ filename }}
+            </p>
+
+        </div>
+
+    </div>
+
+
+
+    <!-- ================= THUMBNAIL ================= -->
 
     {% if thumbnail %}
 
-    <div class="thumbnail-container">
+    <section class="result-card thumbnail-section">
 
-        <img
-            src="{{ thumbnail }}"
-            alt="Video thumbnail"
-            class="thumbnail"
-        >
+        <h2>
+            Video Preview
+        </h2>
 
-    </div>
+        <div class="thumbnail-container">
+
+            <img
+                src="{{ thumbnail }}"
+                alt="Video thumbnail"
+                class="thumbnail"
+            >
+
+        </div>
+
+    </section>
 
     {% endif %}
 
 
+
+    <!-- ================= VIRALITY PREDICTION ================= -->
+
     <section class="score-card">
 
-        <h2>
-            Virality Score
-        </h2>
+        <div class="score-header">
+
+            <div>
+
+                <h2>
+                    Virality Prediction
+                </h2>
+
+                <p>
+                    Machine-learning based prediction from the extracted
+                    video characteristics.
+                </p>
+
+            </div>
+
+            <div class="prediction-mode">
+
+                {{ prediction.prediction_mode }}
+
+            </div>
+
+        </div>
+
 
         <div class="score">
 
-            {{ prediction.virality_score }}
+            {{ "%.1f"|format(prediction.virality_score|float) }}
 
-            <span>/ 100</span>
+            <span>
+                / 100
+            </span>
 
         </div>
+
 
         <h3>
             {{ prediction.prediction_label }}
         </h3>
 
-        <p>
 
-            Prediction mode:
+        {% if prediction.estimated_views is not none %}
 
-            <strong>
-                {{ prediction.prediction_mode }}
-            </strong>
+        <div class="prediction-box">
 
-        </p>
-
-        {% if prediction.predicted_views is not none %}
-
-        <p>
-
-            Estimated views:
+            <span>
+                Estimated Views / Reach
+            </span>
 
             <strong>
-                {{ "{:,.0f}".format(prediction.predicted_views) }}
+                {{ "{:,.0f}".format(prediction.estimated_views|float) }}
             </strong>
 
-        </p>
+        </div>
 
         {% endif %}
+
+
+
+        {% if prediction.model_type %}
+
+        <div class="model-info">
+
+            <span>
+                Model
+            </span>
+
+            <strong>
+                {{ prediction.model_type }}
+            </strong>
+
+            {% if prediction.training_rows %}
+
+            <span>
+                Training Rows
+            </span>
+
+            <strong>
+                {{ prediction.training_rows }}
+            </strong>
+
+            {% endif %}
+
+        </div>
+
+        {% endif %}
+
+
 
         {% if not prediction.is_model_available %}
 
         <div class="warning">
 
             <strong>
-                Demo mode
+                Demo / Heuristic Mode
             </strong>
 
             <p>
-                No trained ML model was found. The score shown
-                here is based on extracted video characteristics
-                and is not validated model performance.
+                No trained ML model was available. The displayed score
+                is based on extracted video characteristics and should
+                not be treated as validated model performance.
             </p>
 
         </div>
@@ -134,13 +208,28 @@
     </section>
 
 
-    <section>
 
-        <h2>
-            Extracted Features
-        </h2>
+
+    <!-- ================= VIDEO ANALYSIS ================= -->
+
+    <section class="result-card">
+
+        <div class="section-heading">
+
+            <h2>
+                🎥 Video Analysis
+            </h2>
+
+            <p>
+                Technical and visual characteristics extracted from
+                the uploaded video.
+            </p>
+
+        </div>
+
 
         <div class="metrics-grid">
+
 
             <div class="metric">
 
@@ -149,7 +238,7 @@
                 </span>
 
                 <strong>
-                    {{ "%.2f"|format(features.duration) }} sec
+                    {{ "%.2f"|format(features.duration|float) }} sec
                 </strong>
 
             </div>
@@ -162,7 +251,7 @@
                 </span>
 
                 <strong>
-                    {{ "%.2f"|format(features.fps) }}
+                    {{ "%.2f"|format(features.fps|float) }}
                 </strong>
 
             </div>
@@ -184,11 +273,11 @@
             <div class="metric">
 
                 <span>
-                    Motion
+                    Motion Score
                 </span>
 
                 <strong>
-                    {{ "%.2f"|format(features.motion_score) }}
+                    {{ "%.2f"|format(features.motion_score|float) }}
                 </strong>
 
             </div>
@@ -210,11 +299,24 @@
             <div class="metric">
 
                 <span>
+                    Scene Change Rate
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(features.scene_change_rate|float) }}
+                </strong>
+
+            </div>
+
+
+            <div class="metric">
+
+                <span>
                     Hook Intensity
                 </span>
 
                 <strong>
-                    {{ "%.2f"|format(features.hook_intensity) }}
+                    {{ "%.2f"|format(features.hook_intensity|float) }}
                 </strong>
 
             </div>
@@ -240,7 +342,7 @@
                 </span>
 
                 <strong>
-                    {{ "%.2f"|format(features.face_presence_ratio) }}%
+                    {{ "%.2f"|format(features.face_presence_ratio|float) }}%
                 </strong>
 
             </div>
@@ -253,7 +355,7 @@
                 </span>
 
                 <strong>
-                    {{ "%.2f"|format(features.brightness) }}
+                    {{ "%.2f"|format(features.brightness|float) }}
                 </strong>
 
             </div>
@@ -266,7 +368,7 @@
                 </span>
 
                 <strong>
-                    {{ "%.2f"|format(features.contrast) }}
+                    {{ "%.2f"|format(features.contrast|float) }}
                 </strong>
 
             </div>
@@ -275,11 +377,11 @@
             <div class="metric">
 
                 <span>
-                    Pacing
+                    Pacing Score
                 </span>
 
                 <strong>
-                    {{ "%.2f"|format(features.pacing_score) }}
+                    {{ "%.2f"|format(features.pacing_score|float) }}
                 </strong>
 
             </div>
@@ -289,11 +391,759 @@
     </section>
 
 
-    <section>
 
-        <h2>
-            Recommendations
-        </h2>
+
+    <!-- ================= AUDIO ANALYSIS ================= -->
+
+    {% if audio_features %}
+
+    <section class="result-card">
+
+        <div class="section-heading">
+
+            <h2>
+                🔊 Audio Analysis
+            </h2>
+
+            <p>
+                Audio and speech characteristics detected from the video.
+            </p>
+
+        </div>
+
+
+        <div class="metrics-grid">
+
+
+            {% if audio_features.has_audio is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Audio Available
+                </span>
+
+                <strong>
+
+                    {% if audio_features.has_audio %}
+                        Yes
+                    {% else %}
+                        No
+                    {% endif %}
+
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if audio_features.speech_ratio is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Speech Ratio
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(audio_features.speech_ratio|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if audio_features.silence_ratio is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Silence Ratio
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(audio_features.silence_ratio|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if audio_features.music_ratio is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Music Ratio
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(audio_features.music_ratio|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+        </div>
+
+    </section>
+
+    {% endif %}
+
+
+
+
+    <!-- ================= CONTENT / TRANSCRIPT ================= -->
+
+    {% if content_features %}
+
+    <section class="result-card">
+
+        <div class="section-heading">
+
+            <h2>
+                📝 Content & Transcript Analysis
+            </h2>
+
+            <p>
+                Analysis of spoken or textual content extracted from the video.
+            </p>
+
+        </div>
+
+
+        <div class="metrics-grid">
+
+
+            {% if content_features.word_count is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Word Count
+                </span>
+
+                <strong>
+                    {{ content_features.word_count }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if content_features.unique_word_count is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Unique Words
+                </span>
+
+                <strong>
+                    {{ content_features.unique_word_count }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if content_features.sentence_count is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Sentences
+                </span>
+
+                <strong>
+                    {{ content_features.sentence_count }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if content_features.vocabulary_diversity is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Vocabulary Diversity
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(content_features.vocabulary_diversity|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if content_features.filler_word_ratio is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Filler Word Ratio
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(content_features.filler_word_ratio|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if content_features.hook_score is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Content Hook Score
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(content_features.hook_score|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if content_features.cta_score is defined %}
+
+            <div class="metric">
+
+                <span>
+                    CTA Score
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(content_features.cta_score|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if content_features.transcript_quality is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Transcript Quality
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(content_features.transcript_quality|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if content_features.sentiment_score is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Sentiment Score
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(content_features.sentiment_score|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+        </div>
+
+
+
+        {% if transcript %}
+
+        <div class="transcript-box">
+
+            <h3>
+                Transcript
+            </h3>
+
+            <p>
+                {{ transcript }}
+            </p>
+
+        </div>
+
+        {% endif %}
+
+    </section>
+
+    {% endif %}
+
+
+
+
+    <!-- ================= CREATOR ANALYSIS ================= -->
+
+    {% if creator_features %}
+
+    <section class="result-card">
+
+        <div class="section-heading">
+
+            <h2>
+                👤 Creator Analysis
+            </h2>
+
+            <p>
+                Creator profile information used by the prediction pipeline.
+            </p>
+
+        </div>
+
+
+        <div class="metrics-grid">
+
+
+            {% if creator_features.followers is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Followers
+                </span>
+
+                <strong>
+                    {{ "{:,.0f}".format(creator_features.followers|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if creator_features.following is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Following
+                </span>
+
+                <strong>
+                    {{ "{:,.0f}".format(creator_features.following|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if creator_features.follower_following_ratio is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Follower / Following Ratio
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(creator_features.follower_following_ratio|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if creator_features.account_size is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Account Size
+                </span>
+
+                <strong>
+                    {{ creator_features.account_size }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if creator_features.creator_category is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Creator Category
+                </span>
+
+                <strong>
+                    {{ creator_features.creator_category }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+        </div>
+
+    </section>
+
+    {% endif %}
+
+
+
+
+    <!-- ================= PLATFORM ANALYSIS ================= -->
+
+    {% if platform_features %}
+
+    <section class="result-card">
+
+        <div class="section-heading">
+
+            <h2>
+                📱 Platform Analysis
+            </h2>
+
+            <p>
+                Platform and video-format compatibility analysis.
+            </p>
+
+        </div>
+
+
+        <div class="metrics-grid">
+
+
+            {% if platform_features.platform is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Platform
+                </span>
+
+                <strong>
+                    {{ platform_features.platform }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if platform_features.orientation is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Orientation
+                </span>
+
+                <strong>
+                    {{ platform_features.orientation }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if platform_features.format_type is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Format Type
+                </span>
+
+                <strong>
+                    {{ platform_features.format_type }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if platform_features.platform_category is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Platform Category
+                </span>
+
+                <strong>
+                    {{ platform_features.platform_category }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if platform_features.format_compatibility is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Format Compatibility
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(platform_features.format_compatibility|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+        </div>
+
+    </section>
+
+    {% endif %}
+
+
+
+
+    <!-- ================= HASHTAG ANALYSIS ================= -->
+
+    {% if hashtag_features %}
+
+    <section class="result-card">
+
+        <div class="section-heading">
+
+            <h2>
+                #️⃣ Hashtag Analysis
+            </h2>
+
+            <p>
+                Hashtag quantity, niche relevance and category analysis.
+            </p>
+
+        </div>
+
+
+        <div class="metrics-grid">
+
+
+            {% if hashtag_features.hashtag_count is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Hashtag Count
+                </span>
+
+                <strong>
+                    {{ hashtag_features.hashtag_count }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if hashtag_features.unique_hashtag_count is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Unique Hashtags
+                </span>
+
+                <strong>
+                    {{ hashtag_features.unique_hashtag_count }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if hashtag_features.generic_hashtag_count is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Generic Hashtags
+                </span>
+
+                <strong>
+                    {{ hashtag_features.generic_hashtag_count }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if hashtag_features.niche_hashtag_count is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Niche Hashtags
+                </span>
+
+                <strong>
+                    {{ hashtag_features.niche_hashtag_count }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if hashtag_features.hashtag_category_relevance is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Category Relevance
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(hashtag_features.hashtag_category_relevance|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if hashtag_features.hashtag_niche_score is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Niche Score
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(hashtag_features.hashtag_niche_score|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+
+
+            {% if hashtag_features.hashtag_density is defined %}
+
+            <div class="metric">
+
+                <span>
+                    Hashtag Density
+                </span>
+
+                <strong>
+                    {{ "%.2f"|format(hashtag_features.hashtag_density|float) }}
+                </strong>
+
+            </div>
+
+            {% endif %}
+
+        </div>
+
+
+
+        {% if hashtag_features.hashtags %}
+
+        <div class="hashtag-list">
+
+            <h3>
+                Detected Hashtags
+            </h3>
+
+            <div class="hashtags">
+
+                {% for hashtag in hashtag_features.hashtags %}
+
+                    <span class="hashtag">
+                        #{{ hashtag }}
+                    </span>
+
+                {% endfor %}
+
+            </div>
+
+        </div>
+
+        {% endif %}
+
+    </section>
+
+    {% endif %}
+
+
+
+
+    <!-- ================= RECOMMENDATIONS ================= -->
+
+    <section class="result-card">
+
+        <div class="section-heading">
+
+            <h2>
+                💡 Recommendations
+            </h2>
+
+            <p>
+                Suggestions generated from the extracted feature profile.
+            </p>
+
+        </div>
+
 
         <div class="recommendations">
 
@@ -301,7 +1151,13 @@
 
                 <div class="recommendation">
 
-                    {{ recommendation }}
+                    <span class="recommendation-icon">
+                        ✓
+                    </span>
+
+                    <span>
+                        {{ recommendation }}
+                    </span>
 
                 </div>
 
@@ -318,14 +1174,19 @@
     </section>
 
 
+
+
+    <!-- ================= ACTIONS ================= -->
+
     <div class="actions">
 
         <a
-            href="{{ url_for('home') }}"
+            href="{{ url_for('index') }}"
             class="button"
         >
             Analyze Another Video
         </a>
+
 
         <a
             href="{{ url_for('history') }}"
@@ -333,17 +1194,15 @@
         >
             View History
         </a>
-
-        <a
-            href="{{ url_for('report', analysis_id=analysis_id) }}"
-            class="button secondary"
-        >
-            Generate PDF Report
-        </a>
-
     </div>
 
-</main>
+
+
+
+  
+
+
+
 
 </body>
 

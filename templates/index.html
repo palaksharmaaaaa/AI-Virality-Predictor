@@ -1,5 +1,4 @@
 <!DOCTYPE html>
-
 <html lang="en">
 
 <head>
@@ -11,9 +10,7 @@
         content="width=device-width, initial-scale=1.0"
     >
 
-    <title>
-        AI Virality Predictor
-    </title>
+    <title>AI Virality Predictor</title>
 
     <link
         rel="stylesheet"
@@ -24,169 +21,440 @@
 
 <body>
 
-<div class="navbar">
+    <!-- =====================================================
+         NAVBAR
+         ===================================================== -->
 
-    <div class="logo">
-        AI Virality Predictor
-    </div>
+    <nav class="navbar">
 
-    <div class="nav-links">
-
-        <a href="{{ url_for('home') }}">
-            Home
-        </a>
-
-        <a href="{{ url_for('history') }}">
-            History
-        </a>
-
-    </div>
-
-</div>
-
-
-<main class="container">
-
-    <section class="hero">
-
-        <h1>
+        <div class="logo">
             AI Virality Predictor
-        </h1>
+        </div>
 
-        <p>
-            Analyze video characteristics and estimate
-            performance potential using computer vision
-            and machine learning.
-        </p>
+        <div class="nav-links">
 
-    </section>
+            <a href="{{ url_for('index') }}">
+                index
+            </a>
 
-
-    {% with messages = get_flashed_messages() %}
-
-        {% if messages %}
-
-            <div class="alert">
-
-                {% for message in messages %}
-
-                    <p>
-                        {{ message }}
-                    </p>
-
-                {% endfor %}
-
-            </div>
-
-        {% endif %}
-
-    {% endwith %}
-
-
-    <section class="upload-card">
-
-        <form
-            action="{{ url_for('analyze') }}"
-            method="POST"
-            enctype="multipart/form-data"
-            id="uploadForm"
-        >
-
-            <label
-                for="video"
-                class="upload-label"
-            >
-                Select Video
-            </label>
-
-            <input
-                id="video"
-                name="video"
-                type="file"
-                accept="video/mp4,video/mov,video/avi,video/x-matroska"
-                required
-            >
-
-            <p
-                id="fileName"
-                class="file-name"
-            >
-                No video selected
-            </p>
-
-            <button
-                type="submit"
-                class="primary-button"
-                id="analyzeButton"
-            >
-                Analyze Video
-            </button>
-
-        </form>
-
-    </section>
-
-
-    <section class="features-section">
-
-        <h2>
-            What will be analyzed?
-        </h2>
-
-        <div class="feature-grid">
-
-            <div class="feature-card">
-                <h3>Motion</h3>
-                <p>
-                    Measures visual movement across sampled frames.
-                </p>
-            </div>
-
-            <div class="feature-card">
-                <h3>Scene Changes</h3>
-                <p>
-                    Detects significant visual transitions.
-                </p>
-            </div>
-
-            <div class="feature-card">
-                <h3>Hook</h3>
-                <p>
-                    Evaluates visual activity during the opening.
-                </p>
-            </div>
-
-            <div class="feature-card">
-                <h3>Faces</h3>
-                <p>
-                    Detects faces across sampled frames.
-                </p>
-            </div>
-
-            <div class="feature-card">
-                <h3>Brightness</h3>
-                <p>
-                    Measures average visual brightness.
-                </p>
-            </div>
-
-            <div class="feature-card">
-                <h3>Pacing</h3>
-                <p>
-                    Estimates pacing using scene transitions.
-                </p>
-            </div>
+            <a href="{{ url_for('history') }}">
+                History
+            </a>
 
         </div>
 
-    </section>
-
-</main>
+    </nav>
 
 
-<script
-    src="{{ url_for('static', filename='js/app.js') }}"
-></script>
+    <main class="container">
+
+        <!-- =================================================
+             HERO
+             ================================================= -->
+
+        <section class="hero">
+
+            <h1>
+                AI Virality Predictor
+            </h1>
+
+            <p>
+                Analyze video characteristics, content,
+                creator profile and social media context
+                to estimate performance potential using
+                computer vision and machine learning.
+            </p>
+
+        </section>
+
+
+        <!-- =================================================
+             FLASH MESSAGES
+             ================================================= -->
+
+        {% with messages = get_flashed_messages() %}
+
+            {% if messages %}
+
+                <div class="alert">
+
+                    {% for message in messages %}
+
+                        <p>{{ message }}</p>
+
+                    {% endfor %}
+
+                </div>
+
+            {% endif %}
+
+        {% endwith %}
+
+
+        <!-- =================================================
+             UPLOAD CARD
+             ================================================= -->
+
+        <section class="upload-card">
+
+            <form
+                action="{{ url_for('analyze') }}"
+                method="POST"
+                enctype="multipart/form-data"
+                id="uploadForm"
+            >
+
+                <!-- =========================================
+                     1. UPLOAD VIDEO
+                     ========================================= -->
+
+                <div class="form-section">
+
+                    <h2>
+                        1. Upload Video
+                    </h2>
+
+                    <label
+                        for="video"
+                        class="upload-label"
+                    >
+                        Select Video
+                    </label>
+
+                    <input
+                        id="video"
+                        name="video"
+                        type="file"
+                        accept=".mp4,.mov,.avi,.mkv,.webm,video/mp4,video/quicktime,video/x-msvideo,video/x-matroska,video/webm"
+                        required
+                    >
+
+                    <p
+                        id="fileName"
+                        class="file-name"
+                    >
+                        No video selected
+                    </p>
+
+                </div>
+
+
+                <!-- =========================================
+                     2. SOCIAL MEDIA INFORMATION
+                     
+                     CLOSED BY DEFAULT
+                     ========================================= -->
+
+                <details class="social-media-section">
+
+                    <summary>
+
+                        <span class="social-title">
+                            2. 📱 Social Media Information
+                        </span>
+
+                        <span class="social-hint">
+                            Click to expand
+                        </span>
+
+                    </summary>
+
+
+                    <div class="social-media-fields">
+
+                        <!-- PLATFORM -->
+
+                        <div class="form-group">
+
+                            <label for="platform">
+                                Platform
+                            </label>
+
+                            <select
+                                id="platform"
+                                name="platform"
+                            >
+
+                                <option value="instagram">
+                                    Instagram
+                                </option>
+
+                                <option value="youtube">
+                                    YouTube
+                                </option>
+
+                                <option value="tiktok">
+                                    TikTok
+                                </option>
+
+                                <option value="facebook">
+                                    Facebook
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <!-- FOLLOWERS -->
+
+                        <div class="form-group">
+
+                            <label for="followers">
+                                Followers
+                            </label>
+
+                            <input
+                                type="number"
+                                id="followers"
+                                name="followers"
+                                value="25000"
+                                min="0"
+                                step="1"
+                                placeholder="e.g. 25000"
+                            >
+
+                        </div>
+
+
+                        <!-- FOLLOWING -->
+
+                        <div class="form-group">
+
+                            <label for="following">
+                                Following
+                            </label>
+
+                            <input
+                                type="number"
+                                id="following"
+                                name="following"
+                                value="800"
+                                min="0"
+                                step="1"
+                                placeholder="e.g. 800"
+                            >
+
+                        </div>
+
+
+                        <!-- CREATOR CATEGORY -->
+
+                        <div class="form-group">
+
+                            <label for="creator_category">
+                                Creator / Content Category
+                            </label>
+
+                            <select
+                                id="creator_category"
+                                name="creator_category"
+                            >
+
+                                <option value="general">
+                                    General
+                                </option>
+
+                                <option value="technology">
+                                    Technology
+                                </option>
+
+                                <option value="education">
+                                    Education
+                                </option>
+
+                                <option value="fitness">
+                                    Fitness
+                                </option>
+
+                                <option value="finance">
+                                    Finance
+                                </option>
+
+                                <option value="food">
+                                    Food
+                                </option>
+
+                                <option value="travel">
+                                    Travel
+                                </option>
+
+                                <option value="entertainment">
+                                    Entertainment
+                                </option>
+
+                            </select>
+
+                        </div>
+
+
+                        <!-- HASHTAGS -->
+
+                        <div class="form-group full-width">
+
+                            <label for="hashtags">
+                                Hashtags
+                            </label>
+
+                            <input
+                                type="text"
+                                id="hashtags"
+                                name="hashtags"
+                                placeholder="#ai #technology #machinelearning"
+                            >
+
+                            <small>
+                                Enter hashtags separated by spaces.
+                            </small>
+
+                        </div>
+
+                    </div>
+
+                </details>
+
+
+                <!-- =========================================
+                     ANALYZE BUTTON
+                     ========================================= -->
+
+                <button
+                    type="submit"
+                    class="primary-button"
+                    id="analyzeButton"
+                >
+                    Analyze Video
+                </button>
+
+            </form>
+
+        </section>
+
+
+        <!-- =================================================
+             FEATURES
+             ================================================= -->
+
+        <section class="features-section">
+
+            <h2>
+                What will be analyzed?
+            </h2>
+
+            <div class="feature-grid">
+
+
+                <!-- VIDEO -->
+
+                <div class="feature-card">
+
+                    <h3>
+                        🎥 Video
+                    </h3>
+
+                    <p>
+                        Duration, FPS, resolution,
+                        aspect ratio, motion, scene changes,
+                        brightness, contrast and pacing.
+                    </p>
+
+                </div>
+
+
+                <!-- AUDIO -->
+
+                <div class="feature-card">
+
+                    <h3>
+                        🎤 Audio
+                    </h3>
+
+                    <p>
+                        Audio presence, speech, silence
+                        and music characteristics.
+                    </p>
+
+                </div>
+
+
+                <!-- CONTENT -->
+
+                <div class="feature-card">
+
+                    <h3>
+                        📝 Content
+                    </h3>
+
+                    <p>
+                        Transcript, language, word count,
+                        vocabulary, hook, CTA and sentiment.
+                    </p>
+
+                </div>
+
+
+                <!-- HASHTAGS -->
+
+                <div class="feature-card">
+
+                    <h3>
+                        #️⃣ Hashtags
+                    </h3>
+
+                    <p>
+                        Hashtag count, niche usage,
+                        generic hashtags and category
+                        relevance.
+                    </p>
+
+                </div>
+
+
+                <!-- CREATOR -->
+
+                <div class="feature-card">
+
+                    <h3>
+                        👤 Creator
+                    </h3>
+
+                    <p>
+                        Followers, following, account size,
+                        follower ratio and creator category.
+                    </p>
+
+                </div>
+
+
+                <!-- PLATFORM -->
+
+                <div class="feature-card">
+
+                    <h3>
+                        📱 Platform
+                    </h3>
+
+                    <p>
+                        Platform, orientation, video format
+                        and format compatibility.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+
+    <!-- =====================================================
+         JAVASCRIPT
+         ===================================================== -->
+
+    <script
+        src="{{ url_for('static', filename='js/app.js') }}"
+    ></script>
 
 </body>
 

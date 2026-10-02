@@ -1,5 +1,13 @@
 import os
-from datetime import datetime
+import json
+import traceback
+import tempfile
+import subprocess
+import wave
+from flask import send_file
+
+import numpy as np
+import imageio_ffmpeg
 
 from flask import (
     Flask,
@@ -7,205 +15,1353 @@ from flask import (
     request,
     redirect,
     url_for,
+    flash,
     jsonify,
     send_file,
-    flash
 )
-from config.config import (
-    UPLOAD_FOLDER,
-    THUMBNAIL_FOLDER,
-    ALLOWED_EXTENSIONS,
-    MAX_CONTENT_LENGTH
-)
+from werkzeug.utils import secure_filename
+
+from config.config import Config
 
 from database.database import (
-    initialize_database,
+    init_db,
     save_analysis,
-    get_analysis,
-    get_all_analyses
+    get_all_analyses,
+    get_analysis_by_id
 )
 
-from utils.helpers import allowed_file, unique_filename
-
-from video.extractor import extract_video_features
+from video.extractor import VideoFeatureExtractor
+from video.transcript import transcribe_video
 from video.thumbnail import generate_thumbnail
 
-from ml.predict import predict_virality
+from content.content_analyzer import ContentAnalyzer
+from creator.creator_analyzer import CreatorAnalyzer
+from platform_analysis.platform_analyzer import PlatformAnalyzer
+from hashtag.hashtag_analyzer import HashtagAnalyzer
 
-from recommendations.recommender import generate_recommendations
-from reports.report_generator import generate_report
+from ml.predict import ViralityPredictor
 
+
+# ============================================================
+# APP CONFIGURATION
+# ============================================================
 
 app = Flask(__name__)
+app.config.from_object(Config)
 
-app.secret_key = "ai-virality-predictor-secret-key"
+app.secret_key = getattr(
+    Config,
+    "SECRET_KEY",
+    "ai-virality-predictor-secret-key"
+)
 
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
-app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
+UPLOAD_FOLDER = getattr(
+    Config,
+    "UPLOAD_FOLDER",
+    os.path.join("data", "uploads")
+)
 
-
-# ---------------------------------------------------------
-# Create required folders
-# ---------------------------------------------------------
+ALLOWED_EXTENSIONS = {
+    "mp4",
+    "mov",
+    "avi",
+    "mkv",
+    "webm",
+    "m4v"
+}
 
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-os.makedirs(THUMBNAIL_FOLDER, exist_ok=True)
-
-initialize_database()
 
 
-# ---------------------------------------------------------
-# Home
-# ---------------------------------------------------------
+# ============================================================
+# INITIALIZE DATABASE
+# ============================================================
 
-@app.route("/")
-def home():
-    return render_template("index.html")
-
-
-# ---------------------------------------------------------
-# Health check
-# ---------------------------------------------------------
-
-@app.route("/api/health")
-def health():
-    return jsonify({
-        "status": "running",
-        "message": "AI Virality Predictor is running"
-    })
+try:
+    init_db()
+except Exception:
+    pass
 
 
-# ---------------------------------------------------------
-# Analyze video
-# ---------------------------------------------------------
+# ============================================================
+# FFmpeg
+# ============================================================
 
-@app.route("/analyze", methods=["POST"])
-def analyze():
+FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 
-    if "video" not in request.files:
-        flash("Please select a video.")
-        return redirect(url_for("home"))
+FFMPEG_DIR = os.path.dirname(FFMPEG_PATH)
 
-    video = request.files["video"]
+os.environ["PATH"] = (
+    FFMPEG_DIR
+    + os.pathsep
+    + os.environ.get("PATH", "")
+)
 
-    if video.filename == "":
-        flash("No video selected.")
-        return redirect(url_for("home"))
 
-    if not allowed_file(video.filename, ALLOWED_EXTENSIONS):
-        flash(
-            "Unsupported video format. "
-            "Allowed formats: MP4, MOV, AVI, MKV."
-        )
-        return redirect(url_for("home"))
+# ============================================================
+# HELPER FUNCTIONS
+# ============================================================
+
+def allowed_file(filename):
+    """
+    Check whether uploaded file has an allowed video extension.
+    """
+    if not filename:
+        return False
+
+    return (
+        "." in filename
+        and filename.rsplit(".", 1)[1].lower()
+        in ALLOWED_EXTENSIONS
+    )
+
+
+def safe_dict(value):
+    """
+    Always return a dictionary.
+    """
+    if isinstance(value, dict):
+        return value
+
+    return {}
+
+
+def safe_float(value, default=0.0):
+    """
+    Convert value safely to float.
+    """
+    try:
+        return float(value)
+    except Exception:
+        return default
+
+
+def safe_int(value, default=0):
+    """
+    Convert value safely to integer.
+    """
+    try:
+        return int(float(value))
+    except Exception:
+        return default
+
+
+# ============================================================
+# VIDEO ANALYSIS
+# ============================================================
+
+def analyze_video(video_path):
+    try:
+        extractor = VideoFeatureExtractor(video_path)
+
+        # Your extractor.py uses extract()
+        result = extractor.extract()
+
+        if not isinstance(result, dict):
+            return {}
+
+        return result
+
+    except Exception as error:
+        print("Video extraction error:", error)
+        return {}
+
+
+# ============================================================
+# AUDIO ANALYSIS
+# ============================================================
+
+def analyze_audio(video_path):
+    """
+    Extract basic audio characteristics.
+
+    This includes:
+    - audio availability
+    - RMS energy
+    - silence ratio
+    - active audio ratio
+
+    speech_ratio here is an activity-based estimate.
+    It is NOT a dedicated speech classifier.
+    """
+
+    result = {
+        "has_audio": 0,
+        "audio_available": False,
+        "audio_duration": 0.0,
+        "rms_energy": 0.0,
+        "silence_ratio": 1.0,
+        "speech_ratio": 0.0,
+        "music_ratio": 0.0
+    }
+
+    wav_path = None
 
     try:
 
-        # -------------------------------------------------
-        # Generate unique filename
-        # -------------------------------------------------
+        if not os.path.exists(video_path):
+            return result
 
-        filename = unique_filename(video.filename)
-
-        video_path = os.path.join(
-            app.config["UPLOAD_FOLDER"],
-            filename
+        wav_path = os.path.join(
+            tempfile.gettempdir(),
+            "virality_audio_analysis.wav"
         )
 
-        video.save(video_path)
-
-        # -------------------------------------------------
-        # Extract features
-        # -------------------------------------------------
-
-        features = extract_video_features(video_path)
-
-        # -------------------------------------------------
-        # Prediction
-        # -------------------------------------------------
-
-        prediction = predict_virality(features)
-        # Demo estimated engagement values
-      
-
-        # -------------------------------------------------
-        # Recommendations
-        # -------------------------------------------------
-
-        recommendations = generate_recommendations(
-            features,
-            prediction
-        )
-
-        # -------------------------------------------------
-        # Thumbnail
-        # -------------------------------------------------
-
-        thumbnail_filename = (
-            os.path.splitext(filename)[0] + ".jpg"
-        )
-
-        thumbnail_path = os.path.join(
-            THUMBNAIL_FOLDER,
-            thumbnail_filename
-        )
-
-        thumbnail_created = generate_thumbnail(
+        command = [
+            FFMPEG_PATH,
+            "-y",
+            "-i",
             video_path,
-            thumbnail_path
+            "-map",
+            "0:a:0",
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-acodec",
+            "pcm_s16le",
+            wav_path
+        ]
+
+        process = subprocess.run(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            errors="ignore"
         )
 
-        # -------------------------------------------------
-        # Save analysis in database
-        # -------------------------------------------------
+        if process.returncode != 0:
+            return result
 
-        timestamp = datetime.now().strftime(
-            "%Y-%m-%d %H:%M:%S"
-        )
+        if not os.path.exists(wav_path):
+            return result
 
-        analysis_id = save_analysis(
-            filename=video.filename,
-            timestamp=timestamp,
-            features=features,
-            prediction=prediction
-        )
+        with wave.open(wav_path, "rb") as wf:
 
-        return render_template(
-            "result.html",
-            analysis_id=analysis_id,
-            filename=video.filename,
-            features=features,
-            prediction=prediction,
-            recommendations=recommendations,
-            thumbnail=(
-                url_for(
-                    "static",
-                    filename=f"thumbnails/{thumbnail_filename}"
-                )
-                if thumbnail_created
-                else None
+            sample_rate = wf.getframerate()
+            channels = wf.getnchannels()
+            sample_width = wf.getsampwidth()
+            frame_count = wf.getnframes()
+
+            audio_bytes = wf.readframes(frame_count)
+
+        if sample_width != 2:
+            return result
+
+        audio = np.frombuffer(
+            audio_bytes,
+            dtype=np.int16
+        ).astype(np.float32)
+
+        if channels > 1:
+
+            audio = audio.reshape(
+                -1,
+                channels
             )
+
+            audio = audio.mean(axis=1)
+
+        if len(audio) == 0:
+            return result
+
+        audio = audio / 32768.0
+
+        duration = len(audio) / float(sample_rate)
+
+        rms = float(
+            np.sqrt(
+                np.mean(
+                    np.square(audio)
+                )
+            )
+        )
+
+        # --------------------------------------------
+        # Frame-based audio analysis
+        # --------------------------------------------
+
+        frame_size = int(sample_rate * 0.05)
+
+        if frame_size <= 0:
+            frame_size = 800
+
+        frame_count = len(audio) // frame_size
+
+        frame_rms = []
+
+        for i in range(frame_count):
+
+            frame = audio[
+                i * frame_size:
+                (i + 1) * frame_size
+            ]
+
+            if len(frame) == 0:
+                continue
+
+            frame_energy = float(
+                np.sqrt(
+                    np.mean(
+                        np.square(frame)
+                    )
+                )
+            )
+
+            frame_rms.append(frame_energy)
+
+        if frame_rms:
+
+            frame_rms = np.array(
+                frame_rms,
+                dtype=np.float32
+            )
+
+            silence_threshold = max(
+                0.005,
+                rms * 0.20
+            )
+
+            silent_frames = np.sum(
+                frame_rms < silence_threshold
+            )
+
+            total_frames = len(frame_rms)
+
+            silence_ratio = (
+                silent_frames / total_frames
+                if total_frames > 0
+                else 1.0
+            )
+
+            active_ratio = 1.0 - silence_ratio
+
+        else:
+
+            silence_ratio = 1.0
+            active_ratio = 0.0
+
+        result = {
+            "has_audio": 1,
+            "audio_available": True,
+            "audio_duration": round(
+                duration,
+                2
+            ),
+            "rms_energy": round(
+                rms,
+                4
+            ),
+            "silence_ratio": round(
+                silence_ratio,
+                4
+            ),
+
+            # Activity-based estimate.
+            "speech_ratio": round(
+                active_ratio,
+                4
+            ),
+
+            # No music classifier yet.
+            "music_ratio": 0.0
+        }
+
+        return result
+
+    except Exception:
+        return result
+
+    finally:
+
+        if wav_path:
+
+            try:
+                if os.path.exists(wav_path):
+                    os.remove(wav_path)
+            except Exception:
+                pass
+
+
+# ============================================================
+# TRANSCRIPT ANALYSIS
+# ============================================================
+
+def analyze_transcript(video_path):
+    """
+    Run Whisper transcription silently.
+
+    Transcript is returned to the application/UI
+    but is NOT printed in the terminal.
+    """
+
+    try:
+
+        result = transcribe_video(
+            video_path,
+            model_name="small"
+        )
+
+        if not isinstance(result, dict):
+
+            return {
+                "success": False,
+                "transcript": "",
+                "language": "unknown",
+                "segments": [],
+                "error": "Invalid transcript result"
+            }
+
+        transcript = (
+            result.get("transcript", "")
+            or ""
+        ).strip()
+
+        result["transcript"] = transcript
+
+        return result
+
+    except Exception as error:
+
+        return {
+            "success": False,
+            "transcript": "",
+            "language": "unknown",
+            "segments": [],
+            "error": str(error)
+        }
+
+
+# ============================================================
+# CONTENT ANALYSIS
+# ============================================================
+
+def analyze_content(transcript):
+    """
+    Analyze transcript content silently.
+    """
+
+    try:
+
+        transcript = transcript or ""
+
+        analyzer = ContentAnalyzer(
+            transcript
+        )
+
+        content_features = analyzer.analyze()
+
+        if not isinstance(
+            content_features,
+            dict
+        ):
+            content_features = {}
+
+        return content_features
+
+    except Exception:
+        return {}
+
+
+# ============================================================
+# CREATOR ANALYSIS
+# ============================================================
+
+def analyze_creator(
+    followers,
+    following,
+    creator_category
+):
+    """
+    Analyze creator profile.
+    """
+
+    try:
+
+        analyzer = CreatorAnalyzer(
+            followers=followers,
+            following=following,
+            creator_category=creator_category
+        )
+
+        result = analyzer.analyze()
+
+        if not isinstance(result, dict):
+            return {}
+
+        return result
+
+    except Exception:
+        return {}
+
+
+# ============================================================
+# PLATFORM ANALYSIS
+# ============================================================
+
+def analyze_platform(
+    platform,
+    width,
+    height,
+    duration
+):
+    """
+    Analyze platform compatibility.
+    """
+
+    try:
+
+        analyzer = PlatformAnalyzer(
+            platform=platform,
+            width=width,
+            height=height,
+            duration=duration
+        )
+
+        result = analyzer.analyze()
+
+        if not isinstance(result, dict):
+            return {}
+
+        return result
+
+    except Exception:
+        return {}
+
+
+# ============================================================
+# HASHTAG ANALYSIS
+# ============================================================
+
+def analyze_hashtags(
+    hashtags,
+    category
+):
+    """
+    Analyze hashtags.
+    """
+
+    try:
+
+        analyzer = HashtagAnalyzer(
+            hashtags=hashtags,
+            category=category
+        )
+
+        result = analyzer.analyze()
+
+        if not isinstance(result, dict):
+            return {}
+
+        return result
+
+    except Exception:
+        return {}
+
+
+# ============================================================
+# RECOMMENDATIONS
+# ============================================================
+
+def generate_recommendations(
+    video_features,
+    audio_features,
+    content_features,
+    creator_features,
+    platform_features,
+    hashtag_features
+):
+    """
+    Generate human-readable recommendations
+    based on extracted features.
+    """
+
+    recommendations = []
+
+    video_features = safe_dict(video_features)
+    audio_features = safe_dict(audio_features)
+    content_features = safe_dict(content_features)
+    creator_features = safe_dict(creator_features)
+    platform_features = safe_dict(platform_features)
+    hashtag_features = safe_dict(hashtag_features)
+
+    # --------------------------------------------
+    # Duration
+    # --------------------------------------------
+
+    duration = safe_float(
+        video_features.get("duration", 0)
+    )
+
+    if duration > 60:
+
+        recommendations.append(
+            "Consider keeping the video shorter for better short-form engagement."
+        )
+
+    elif duration > 0 and duration < 5:
+
+        recommendations.append(
+            "The video is very short; consider adding enough context to make the hook meaningful."
+        )
+
+    # --------------------------------------------
+    # Hook
+    # --------------------------------------------
+
+    hook_intensity = safe_float(
+        video_features.get(
+            "hook_intensity",
+            0
+        )
+    )
+
+    content_hook_score = safe_float(
+        content_features.get(
+            "hook_score",
+            0
+        )
+    )
+
+    if hook_intensity < 30 and content_hook_score < 30:
+
+        recommendations.append(
+            "Improve the first few seconds with a stronger visual or verbal hook."
+        )
+
+    # --------------------------------------------
+    # Motion
+    # --------------------------------------------
+
+    motion_score = safe_float(
+        video_features.get(
+            "motion_score",
+            0
+        )
+    )
+
+    if motion_score < 5:
+
+        recommendations.append(
+            "The video has relatively low visual motion. Consider adding movement or faster visual changes where appropriate."
+        )
+
+    # --------------------------------------------
+    # Scene changes
+    # --------------------------------------------
+
+    scene_changes = safe_int(
+        video_features.get(
+            "scene_changes",
+            0
+        )
+    )
+
+    if duration > 10 and scene_changes <= 1:
+
+        recommendations.append(
+            "Consider adding meaningful scene or visual changes to maintain attention."
+        )
+
+    # --------------------------------------------
+    # Audio
+    # --------------------------------------------
+
+    if not audio_features.get(
+        "audio_available",
+        False
+    ):
+
+        recommendations.append(
+            "No audio track was detected. Consider adding relevant audio, narration, or captions."
+        )
+
+    silence_ratio = safe_float(
+        audio_features.get(
+            "silence_ratio",
+            0
+        )
+    )
+
+    if silence_ratio > 0.50:
+
+        recommendations.append(
+            "A large portion of the audio is silent. Consider reducing unnecessary silence."
+        )
+
+    # --------------------------------------------
+    # Transcript
+    # --------------------------------------------
+
+    word_count = safe_int(
+        content_features.get(
+            "word_count",
+            0
+        )
+    )
+
+    cta_score = safe_float(
+        content_features.get(
+            "cta_score",
+            0
+        )
+    )
+
+    transcript_quality = safe_float(
+        content_features.get(
+            "transcript_quality",
+            0
+        )
+    )
+
+    if word_count == 0:
+
+        recommendations.append(
+            "No usable speech transcript was detected. Consider adding clear narration or captions if the content depends on speech."
+        )
+
+    elif transcript_quality < 40:
+
+        recommendations.append(
+            "Speech transcription quality is low. Clearer audio and speech can improve content analysis."
+        )
+
+    if word_count > 0 and cta_score < 30:
+
+        recommendations.append(
+            "Consider adding a clear call-to-action such as follow, comment, save, or share."
+        )
+
+    # --------------------------------------------
+    # Creator
+    # --------------------------------------------
+
+    followers = safe_int(
+        creator_features.get(
+            "followers",
+            0
+        )
+    )
+
+    if followers < 1000:
+
+        recommendations.append(
+            "For a smaller creator account, focus on niche relevance and consistent audience engagement."
+        )
+
+    # --------------------------------------------
+    # Hashtags
+    # --------------------------------------------
+
+    hashtag_count = safe_int(
+        hashtag_features.get(
+            "hashtag_count",
+            0
+        )
+    )
+
+    if hashtag_count == 0:
+
+        recommendations.append(
+            "Consider using a small set of relevant and specific hashtags."
+        )
+
+    elif hashtag_count > 30:
+
+        recommendations.append(
+            "The number of hashtags is high. Focus on highly relevant hashtags instead of excessive tagging."
+        )
+
+    # --------------------------------------------
+    # Platform
+    # --------------------------------------------
+
+    compatibility = safe_float(
+        platform_features.get(
+            "format_compatibility",
+            0
+        )
+    )
+
+    if compatibility < 50:
+
+        recommendations.append(
+            "Consider adjusting the video format, orientation, or duration for the selected platform."
+        )
+
+    # --------------------------------------------
+    # Default
+    # --------------------------------------------
+
+    if not recommendations:
+
+        recommendations.append(
+            "The video has a reasonable combination of technical, content, and platform features. Continue testing different hooks and formats."
+        )
+
+    return recommendations
+
+
+# ============================================================
+# COMPLETE ANALYSIS
+# ============================================================
+
+def perform_complete_analysis(
+    video_path,
+    platform,
+    followers,
+    following,
+    creator_category,
+    hashtags
+):
+    """
+    Run the complete video analysis pipeline.
+    """
+
+    # --------------------------------------------------------
+    # 1. VIDEO
+    # --------------------------------------------------------
+
+    video_features = analyze_video(
+        video_path
+    )
+
+    video_features = safe_dict(
+        video_features
+    )
+
+    # --------------------------------------------------------
+    # 2. AUDIO
+    # --------------------------------------------------------
+
+    audio_features = analyze_audio(
+        video_path
+    )
+
+    audio_features = safe_dict(
+        audio_features
+    )
+
+    # --------------------------------------------------------
+    # 3. TRANSCRIPT
+    # --------------------------------------------------------
+
+    transcript_result = analyze_transcript(
+        video_path
+    )
+
+    transcript_result = safe_dict(
+        transcript_result
+    )
+
+    transcript = (
+        transcript_result.get(
+            "transcript",
+            ""
+        )
+        or ""
+    ).strip()
+
+    # --------------------------------------------------------
+    # 4. CONTENT
+    # --------------------------------------------------------
+
+    content_features = analyze_content(
+        transcript
+    )
+
+    content_features = safe_dict(
+        content_features
+    )
+
+    # --------------------------------------------------------
+    # 5. CREATOR
+    # --------------------------------------------------------
+
+    creator_features = analyze_creator(
+        followers,
+        following,
+        creator_category
+    )
+
+    creator_features = safe_dict(
+        creator_features
+    )
+
+    # --------------------------------------------------------
+    # 6. PLATFORM
+    # --------------------------------------------------------
+
+    width = safe_int(
+        video_features.get(
+            "width",
+            0
+        )
+    )
+
+    height = safe_int(
+        video_features.get(
+            "height",
+            0
+        )
+    )
+
+    duration = safe_float(
+        video_features.get(
+            "duration",
+            0
+        )
+    )
+
+    platform_features = analyze_platform(
+        platform,
+        width,
+        height,
+        duration
+    )
+
+    platform_features = safe_dict(
+        platform_features
+    )
+
+    # --------------------------------------------------------
+    # 7. HASHTAGS
+    # --------------------------------------------------------
+
+    category = content_features.get(
+        "category",
+        "general"
+    )
+
+    hashtag_features = analyze_hashtags(
+        hashtags,
+        category
+    )
+
+    hashtag_features = safe_dict(
+        hashtag_features
+    )
+
+    # --------------------------------------------------------
+    # 8. ML PREDICTION
+    # --------------------------------------------------------
+
+    prediction = {}
+
+    try:
+
+        predictor = ViralityPredictor()
+
+        prediction = predictor.predict(
+            video_features=video_features,
+            audio_features=audio_features,
+            content_features=content_features,
+            creator_features=creator_features,
+            platform_features=platform_features,
+            hashtag_features=hashtag_features
+        )
+
+        if not isinstance(
+            prediction,
+            dict
+        ):
+            prediction = {}
+
+    except TypeError:
+
+        # Compatibility with predictors that expect
+        # one combined dictionary.
+
+        try:
+
+            predictor = ViralityPredictor()
+
+            combined_features = {}
+
+            combined_features.update(
+                video_features
+            )
+
+            combined_features.update(
+                audio_features
+            )
+
+            combined_features.update(
+                content_features
+            )
+
+            combined_features.update(
+                creator_features
+            )
+
+            combined_features.update(
+                platform_features
+            )
+
+            combined_features.update(
+                hashtag_features
+            )
+
+            prediction = predictor.predict(
+                combined_features
+            )
+
+            if not isinstance(
+                prediction,
+                dict
+            ):
+                prediction = {}
+
+        except Exception:
+
+            prediction = {}
+
+    except Exception:
+
+        prediction = {}
+
+    # --------------------------------------------------------
+    # 9. RECOMMENDATIONS
+    # --------------------------------------------------------
+
+    recommendations = generate_recommendations(
+        video_features,
+        audio_features,
+        content_features,
+        creator_features,
+        platform_features,
+        hashtag_features
+    )
+
+    # --------------------------------------------------------
+    # 10. FINAL RESULT
+    # --------------------------------------------------------
+
+    analysis = {
+
+        "video_features":
+            video_features,
+
+        "audio_features":
+            audio_features,
+
+        "transcript_result":
+            transcript_result,
+
+        "transcript":
+            transcript,
+
+        "content_features":
+            content_features,
+
+        "creator_features":
+            creator_features,
+
+        "platform_features":
+            platform_features,
+
+        "hashtag_features":
+            hashtag_features,
+
+        "prediction":
+            prediction,
+
+        "recommendations":
+            recommendations
+    }
+
+    return analysis
+
+
+# ============================================================
+# HOME
+# ============================================================
+
+@app.route("/")
+def index():
+
+    return render_template(
+        "index.html"
+    )
+
+
+# ============================================================
+# ANALYZE VIDEO
+# ============================================================
+
+@app.route(
+    "/analyze",
+    methods=["POST"]
+)
+def analyze():
+
+    if "video" not in request.files:
+
+        flash(
+            "Please select a video file."
+        )
+
+        return redirect(
+            url_for("index")
+        )
+
+    video_file = request.files[
+        "video"
+    ]
+
+    if not video_file or not video_file.filename:
+
+        flash(
+            "No video file was selected."
+        )
+
+        return redirect(
+            url_for("index")
+        )
+
+    if not allowed_file(
+        video_file.filename
+    ):
+
+        flash(
+            "Unsupported video format."
+        )
+
+        return redirect(
+            url_for("index")
+        )
+
+    # --------------------------------------------------------
+    # Social media information
+    # --------------------------------------------------------
+
+    platform = (
+        request.form.get(
+            "platform",
+            "instagram"
+        )
+        or "instagram"
+    ).strip().lower()
+
+    followers = safe_int(
+        request.form.get(
+            "followers",
+            0
+        )
+    )
+
+    following = safe_int(
+        request.form.get(
+            "following",
+            0
+        )
+    )
+
+    creator_category = (
+        request.form.get(
+            "creator_category",
+            "general"
+        )
+        or "general"
+    ).strip().lower()
+
+    hashtags_text = (
+        request.form.get(
+            "hashtags",
+            ""
+        )
+        or ""
+    )
+
+    hashtags = [
+        tag.strip()
+        for tag in hashtags_text.split()
+        if tag.strip()
+    ]
+
+    # --------------------------------------------------------
+    # Save uploaded video
+    # --------------------------------------------------------
+
+    original_filename = secure_filename(
+        video_file.filename
+    )
+
+    video_path = os.path.join(
+        UPLOAD_FOLDER,
+        original_filename
+    )
+
+    try:
+
+        video_file.save(
+            video_path
         )
 
     except Exception as error:
 
-        print("ERROR:", error)
-
         flash(
-            f"Video analysis failed: {str(error)}"
+            f"Could not save video: {error}"
         )
 
-        return redirect(url_for("home"))
+        return redirect(
+            url_for("index")
+        )
+
+    # --------------------------------------------------------
+    # Complete analysis
+    # --------------------------------------------------------
+
+    try:
+
+        analysis = perform_complete_analysis(
+            video_path=video_path,
+            platform=platform,
+            followers=followers,
+            following=following,
+            creator_category=creator_category,
+            hashtags=hashtags
+        )
+        print("VIDEO FEATURES:", analysis.get("video_features", {}))
+
+    except Exception as error:
+
+        traceback.print_exc()
+
+        flash(
+            f"Video analysis failed: {error}"
+        )
+
+        return redirect(
+            url_for("index")
+        )
+
+    # --------------------------------------------------------
+    # Thumbnail
+    # --------------------------------------------------------
+
+    thumbnail = None
+
+    try:
+
+        thumbnail = generate_thumbnail(
+            video_path
+        )
+
+    except Exception:
+
+        thumbnail = None
+
+    # --------------------------------------------------------
+    # Save database record
+    # --------------------------------------------------------
+
+    try:
+
+        analysis_id = save_analysis(
+            filename=original_filename,
+            analysis_data=analysis
+        )
+
+    except TypeError:
+
+        # Compatibility with alternate save_analysis
+        # implementations.
+
+        try:
+
+            analysis_id = save_analysis(
+                original_filename,
+                json.dumps(
+                    analysis,
+                    default=str
+                )
+            )
+
+        except Exception:
+
+            analysis_id = None
+
+    except Exception:
+
+        analysis_id = None
+
+    # --------------------------------------------------------
+    # Render result
+    # --------------------------------------------------------
+
+    return render_template(
+        "result.html",
+
+        filename=original_filename,
+
+        thumbnail=thumbnail,
+
+        prediction=analysis.get(
+            "prediction",
+            {}
+        ),
+
+        features=analysis.get(
+            "video_features",
+            {}
+        ),
+
+        audio_features=analysis.get(
+            "audio_features",
+            {}
+        ),
+
+        content_features=analysis.get(
+            "content_features",
+            {}
+        ),
+
+        transcript=analysis.get(
+            "transcript",
+            ""
+        ),
+
+        creator_features=analysis.get(
+            "creator_features",
+            {}
+        ),
+
+        platform_features=analysis.get(
+            "platform_features",
+            {}
+        ),
+
+        hashtag_features=analysis.get(
+            "hashtag_features",
+            {}
+        ),
+
+        recommendations=analysis.get(
+            "recommendations",
+            []
+        ),
+
+        analysis_id=analysis_id
+    )
 
 
-# ---------------------------------------------------------
-# History
-# ---------------------------------------------------------
+# ============================================================
+# HISTORY
+# ============================================================
 
 @app.route("/history")
 def history():
 
-    analyses = get_all_analyses()
+    try:
+
+        analyses = get_all_analyses()
+
+    except Exception:
+
+        analyses = []
 
     return render_template(
         "history.html",
@@ -213,135 +1369,198 @@ def history():
     )
 
 
-# ---------------------------------------------------------
-# Analysis detail
-# ---------------------------------------------------------
+# ============================================================
+# SINGLE ANALYSIS
+# ============================================================
 
-@app.route("/analysis/<int:analysis_id>")
-def analysis_detail(analysis_id):
+@app.route(
+    "/analysis/<int:analysis_id>"
+)
+def analysis_detail(
+    analysis_id
+):
 
-    analysis = get_analysis(analysis_id)
+    try:
 
-    if analysis is None:
-        return "Analysis not found", 404
+        record = get_analysis_by_id(
+            analysis_id
+        )
 
-    features = {
-    "duration": analysis["duration"],
-    "fps": analysis["fps"],
-    "width": analysis["width"],
-    "height": analysis["height"],
-    "motion_score": analysis["motion_score"],
-    "scene_changes": analysis["scene_changes"],
-    "hook_intensity": analysis["hook_intensity"],
-    "face_count": analysis["face_count"],
-    "face_presence_ratio": analysis["face_presence_ratio"],
-    "brightness": analysis["brightness"],
-    "contrast": analysis["contrast"],
-    "pacing_score": analysis["pacing_score"]
-}
+    except Exception:
+
+        record = None
+
+    if not record:
+
+        flash(
+            "Analysis not found."
+        )
+
+        return redirect(
+            url_for("history")
+        )
+
+    # --------------------------------------------------------
+    # Handle dictionary record
+    # --------------------------------------------------------
+
+    if isinstance(
+        record,
+        dict
+    ):
+
+        analysis_data = record.get(
+            "analysis_data",
+            record.get(
+                "data",
+                {}
+            )
+        )
+
+        if isinstance(
+            analysis_data,
+            str
+        ):
+
+            try:
+                analysis_data = json.loads(
+                    analysis_data
+                )
+            except Exception:
+                analysis_data = {}
+
+        if not isinstance(
+            analysis_data,
+            dict
+        ):
+            analysis_data = {}
+
+        filename = record.get(
+            "filename",
+            "Video"
+        )
+
+    else:
+
+        analysis_data = {}
+        filename = "Video"
 
     return render_template(
         "result.html",
-        analysis_id=analysis["id"],
-        filename=analysis["filename"],
-        features=features,
-        prediction={
-            "predicted_views": analysis.get(
-                "predicted_views",
-                0
-            ),
-            "virality_score": analysis["virality_score"],
-            "prediction_label": analysis["prediction_label"],
-            "is_model_available": True,
-            "prediction_mode": "ML Model"
-        },
-        recommendations=[],
-        thumbnail=None
+
+        filename=filename,
+
+        thumbnail=None,
+
+        prediction=analysis_data.get(
+            "prediction",
+            {}
+        ),
+
+        features=analysis_data.get(
+            "video_features",
+            {}
+        ),
+
+        audio_features=analysis_data.get(
+            "audio_features",
+            {}
+        ),
+
+        content_features=analysis_data.get(
+            "content_features",
+            {}
+        ),
+
+        transcript=analysis_data.get(
+            "transcript",
+            ""
+        ),
+
+        creator_features=analysis_data.get(
+            "creator_features",
+            {}
+        ),
+
+        platform_features=analysis_data.get(
+            "platform_features",
+            {}
+        ),
+
+        hashtag_features=analysis_data.get(
+            "hashtag_features",
+            {}
+        ),
+
+        recommendations=analysis_data.get(
+            "recommendations",
+            []
+        ),
+
+        analysis_id=analysis_id
     )
 
 
-# ---------------------------------------------------------
-# Generate PDF report
-# ---------------------------------------------------------
+# ============================================================
+# API - SINGLE ANALYSIS
+# ============================================================
 
-@app.route("/report/<int:analysis_id>")
-def report(analysis_id):
-
-    analysis = get_analysis(analysis_id)
-
-    if analysis is None:
-        return "Analysis not found", 404
-
-    try:
-
-        pdf_path = generate_report(dict(analysis))
-
-        return send_file(
-            pdf_path,
-            as_attachment=True,
-            download_name=f"virality_report_{analysis_id}.pdf"
-        )
-
-    except Exception as error:
-
-        return f"Could not generate report: {error}", 500
-
-
-# ---------------------------------------------------------
-# API: Analyze video
-# ---------------------------------------------------------
-
-@app.route("/api/analyze", methods=["POST"])
-def api_analyze():
-
-    if "video" not in request.files:
-
-        return jsonify({
-            "success": False,
-            "error": "No video uploaded."
-        }), 400
-
-    video = request.files["video"]
-
-    if video.filename == "":
-
-        return jsonify({
-            "success": False,
-            "error": "Empty filename."
-        }), 400
-
-    if not allowed_file(video.filename, ALLOWED_EXTENSIONS):
-
-        return jsonify({
-            "success": False,
-            "error": "Unsupported file format."
-        }), 400
+@app.route(
+    "/api/analysis/<int:analysis_id>"
+)
+def api_analysis(
+    analysis_id
+):
 
     try:
 
-        filename = unique_filename(video.filename)
-
-        video_path = os.path.join(
-            UPLOAD_FOLDER,
-            filename
+        record = get_analysis_by_id(
+            analysis_id
         )
 
-        video.save(video_path)
+        if not record:
 
-        features = extract_video_features(video_path)
+            return jsonify({
+                "success": False,
+                "error": "Analysis not found"
+            }), 404
 
-        prediction = predict_virality(features)
+        if isinstance(
+            record,
+            dict
+        ):
 
-        recommendations = generate_recommendations(
-            features,
-            prediction
-        )
+            analysis_data = record.get(
+                "analysis_data",
+                record.get(
+                    "data",
+                    {}
+                )
+            )
+
+            if isinstance(
+                analysis_data,
+                str
+            ):
+
+                try:
+
+                    analysis_data = json.loads(
+                        analysis_data
+                    )
+
+                except Exception:
+
+                    analysis_data = {}
+
+        else:
+
+            analysis_data = {}
 
         return jsonify({
             "success": True,
-            "features": features,
-            "prediction": prediction,
-            "recommendations": recommendations
+            "analysis_id": analysis_id,
+            "data": analysis_data
         })
 
     except Exception as error:
@@ -352,9 +1571,389 @@ def api_analyze():
         }), 500
 
 
-# ---------------------------------------------------------
-# Run application
-# ---------------------------------------------------------
+# ============================================================
+# API - ALL HISTORY
+# ============================================================
+
+@app.route(
+    "/api/history"
+)
+def api_history():
+
+    try:
+
+        analyses = get_all_analyses()
+
+        return jsonify({
+            "success": True,
+            "data": analyses
+        })
+
+    except Exception as error:
+
+        return jsonify({
+            "success": False,
+            "error": str(error)
+        }), 500
+
+
+
+@app.route("/report/<int:analysis_id>")
+def report(analysis_id):
+
+    analysis = get_analysis_by_id(analysis_id)
+
+    if not analysis:
+        flash("Analysis record not found.")
+        return redirect(url_for("history"))
+
+    try:
+        from reportlab.lib.pagesizes import A4
+        from reportlab.lib import colors
+        from reportlab.lib.styles import getSampleStyleSheet
+        from reportlab.platypus import (
+            SimpleDocTemplate,
+            Paragraph,
+            Spacer,
+            Table,
+            TableStyle
+        )
+
+        import os
+        from datetime import datetime
+
+        reports_dir = os.path.join(
+            Config.UPLOAD_FOLDER,
+            "..",
+            "reports"
+        )
+
+        reports_dir = os.path.abspath(reports_dir)
+
+        os.makedirs(
+            reports_dir,
+            exist_ok=True
+        )
+
+        pdf_path = os.path.join(
+            reports_dir,
+            f"virality_report_{analysis_id}.pdf"
+        )
+
+        doc = SimpleDocTemplate(
+            pdf_path,
+            pagesize=A4,
+            rightMargin=40,
+            leftMargin=40,
+            topMargin=40,
+            bottomMargin=40
+        )
+
+        styles = getSampleStyleSheet()
+
+        story = []
+
+        story.append(
+            Paragraph(
+                "AI Virality Predictor",
+                styles["Title"]
+            )
+        )
+
+        story.append(
+            Paragraph(
+                "Video Analysis Report",
+                styles["Heading2"]
+            )
+        )
+
+        story.append(
+            Spacer(1, 15)
+        )
+
+        story.append(
+            Paragraph(
+                f"<b>Analysis ID:</b> {analysis_id}",
+                styles["Normal"]
+            )
+        )
+
+        story.append(
+            Paragraph(
+                f"<b>Generated:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                styles["Normal"]
+            )
+        )
+
+        story.append(
+            Spacer(1, 20)
+        )
+
+        # ------------------------------------------------
+        # Safely read stored analysis
+        # ------------------------------------------------
+
+        if isinstance(analysis, dict):
+
+            prediction = analysis.get(
+                "prediction",
+                {}
+            )
+
+            features = analysis.get(
+                "video_features",
+                {}
+            )
+
+        else:
+
+            prediction = {}
+
+            features = {}
+
+        if not isinstance(prediction, dict):
+            prediction = {}
+
+        if not isinstance(features, dict):
+            features = {}
+
+        # ------------------------------------------------
+        # Prediction
+        # ------------------------------------------------
+
+        story.append(
+            Paragraph(
+                "Virality Prediction",
+                styles["Heading2"]
+            )
+        )
+
+        prediction_data = [
+            ["Metric", "Value"],
+            [
+                "Virality Score",
+                str(
+                    prediction.get(
+                        "virality_score",
+                        0
+                    )
+                )
+            ],
+            [
+                "Prediction Label",
+                str(
+                    prediction.get(
+                        "prediction_label",
+                        "Unknown"
+                    )
+                )
+            ],
+            [
+                "Estimated Views",
+                str(
+                    prediction.get(
+                        "estimated_views",
+                        0
+                    )
+                )
+            ],
+            [
+                "Model",
+                str(
+                    prediction.get(
+                        "model_type",
+                        "Unknown"
+                    )
+                )
+            ]
+        ]
+
+        table = Table(
+            prediction_data,
+            colWidths=[220, 250]
+        )
+
+        table.setStyle(
+            TableStyle([
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    colors.lightgrey
+                ),
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    0.5,
+                    colors.grey
+                ),
+                (
+                    "PADDING",
+                    (0, 0),
+                    (-1, -1),
+                    8
+                )
+            ])
+        )
+
+        story.append(table)
+
+        story.append(
+            Spacer(1, 20)
+        )
+
+        # ------------------------------------------------
+        # Video Features
+        # ------------------------------------------------
+
+        story.append(
+            Paragraph(
+                "Video Analysis",
+                styles["Heading2"]
+            )
+        )
+
+        video_data = [
+            ["Feature", "Value"],
+            [
+                "Duration",
+                f"{features.get('duration', 0)} sec"
+            ],
+            [
+                "FPS",
+                str(features.get("fps", 0))
+            ],
+            [
+                "Resolution",
+                f"{features.get('width', 0)} x "
+                f"{features.get('height', 0)}"
+            ],
+            [
+                "Motion Score",
+                str(features.get("motion_score", 0))
+            ],
+            [
+                "Scene Changes",
+                str(features.get("scene_changes", 0))
+            ],
+            [
+                "Scene Change Rate",
+                str(features.get("scene_change_rate", 0))
+            ],
+            [
+                "Hook Intensity",
+                str(features.get("hook_intensity", 0))
+            ],
+            [
+                "Face Count",
+                str(features.get("face_count", 0))
+            ],
+            [
+                "Face Presence",
+                str(features.get("face_presence_ratio", 0))
+            ],
+            [
+                "Brightness",
+                str(features.get("brightness", 0))
+            ],
+            [
+                "Contrast",
+                str(features.get("contrast", 0))
+            ],
+            [
+                "Pacing Score",
+                str(features.get("pacing_score", 0))
+            ]
+        ]
+
+        table = Table(
+            video_data,
+            colWidths=[220, 250]
+        )
+
+        table.setStyle(
+            TableStyle([
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    colors.lightgrey
+                ),
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    0.5,
+                    colors.grey
+                ),
+                (
+                    "PADDING",
+                    (0, 0),
+                    (-1, -1),
+                    8
+                )
+            ])
+        )
+
+        story.append(table)
+
+        story.append(
+            Spacer(1, 20)
+        )
+
+        story.append(
+            Paragraph(
+                "This report contains automatically extracted "
+                "video characteristics and machine-learning "
+                "prediction results.",
+                styles["Normal"]
+            )
+        )
+
+        doc.build(story)
+
+        return send_file(
+            pdf_path,
+            as_attachment=True,
+            download_name=(
+                f"virality_report_{analysis_id}.pdf"
+            ),
+            mimetype="application/pdf"
+        )
+
+    except Exception as error:
+
+        flash(
+            f"PDF report generation failed: {error}"
+        )
+
+        return redirect(
+            url_for(
+                "analysis",
+                analysis_id=analysis_id
+            )
+        )
+
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
+@app.route(
+    "/health"
+)
+def health():
+
+    return jsonify({
+        "status": "ok",
+        "application":
+            "AI Virality Predictor"
+    })
+
+
+# ============================================================
+# RUN APPLICATION
+# ============================================================
 
 if __name__ == "__main__":
 

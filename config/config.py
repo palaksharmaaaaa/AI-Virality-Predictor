@@ -1,9 +1,9 @@
 import os
 
 
-# ---------------------------------------------------------
-# Base directory
-# ---------------------------------------------------------
+# ============================================================
+# BASE DIRECTORY
+# ============================================================
 
 BASE_DIR = os.path.dirname(
     os.path.dirname(
@@ -12,90 +12,105 @@ BASE_DIR = os.path.dirname(
 )
 
 
-# ---------------------------------------------------------
-# Project directories
-# ---------------------------------------------------------
+# ============================================================
+# DIRECT CONFIG VARIABLES
+# ============================================================
+
+SECRET_KEY = os.environ.get(
+    "SECRET_KEY",
+    "ai-virality-predictor-secret-key"
+)
+
 
 UPLOAD_FOLDER = os.path.join(
     BASE_DIR,
+    "data",
     "uploads"
 )
 
-THUMBNAIL_FOLDER = os.path.join(
-    BASE_DIR,
-    "static",
-    "thumbnails"
-)
 
-MODEL_FOLDER = os.path.join(
-    BASE_DIR,
-    "models"
-)
+MAX_CONTENT_LENGTH = 200 * 1024 * 1024
 
-DATABASE_FOLDER = os.path.join(
-    BASE_DIR,
-    "database"
-)
-
-
-# ---------------------------------------------------------
-# Database
-# ---------------------------------------------------------
 
 DATABASE_PATH = os.path.join(
-    DATABASE_FOLDER,
+    BASE_DIR,
+    "database",
     "virality.db"
 )
 
 
-# ---------------------------------------------------------
-# Machine learning model
-# ---------------------------------------------------------
-
 MODEL_PATH = os.path.join(
-    MODEL_FOLDER,
+    BASE_DIR,
+    "models",
     "virality_model.joblib"
 )
 
+
 SCALER_PATH = os.path.join(
-    MODEL_FOLDER,
+    BASE_DIR,
+    "models",
     "virality_scaler.joblib"
 )
 
 
-# ---------------------------------------------------------
-# Allowed videos
-# ---------------------------------------------------------
+METADATA_PATH = os.path.join(
+    BASE_DIR,
+    "models",
+    "model_metadata.json"
+)
+
 
 ALLOWED_EXTENSIONS = {
     "mp4",
     "mov",
     "avi",
-    "mkv"
+    "mkv",
+    "webm",
+    "m4v"
 }
 
 
-# ---------------------------------------------------------
-# Upload limit
-# ---------------------------------------------------------
+# ============================================================
+# CONFIG CLASS
+# ============================================================
 
-MAX_CONTENT_LENGTH = (
-    200 * 1024 * 1024
+class Config:
+
+    SECRET_KEY = SECRET_KEY
+
+    UPLOAD_FOLDER = UPLOAD_FOLDER
+
+    MAX_CONTENT_LENGTH = MAX_CONTENT_LENGTH
+
+    DATABASE_PATH = DATABASE_PATH
+
+    MODEL_PATH = MODEL_PATH
+
+    SCALER_PATH = SCALER_PATH
+
+    METADATA_PATH = METADATA_PATH
+
+    ALLOWED_EXTENSIONS = ALLOWED_EXTENSIONS
+
+
+# ============================================================
+# CREATE REQUIRED DIRECTORIES
+# ============================================================
+
+os.makedirs(
+    UPLOAD_FOLDER,
+    exist_ok=True
 )
 
+os.makedirs(
+    os.path.dirname(DATABASE_PATH),
+    exist_ok=True
+)
 
-# ---------------------------------------------------------
-# Video analysis configuration
-# ---------------------------------------------------------
-
-FRAME_SAMPLE_COUNT = 30
-
-SCENE_CHANGE_THRESHOLD = 35.0
-
-BLUR_THRESHOLD = 80.0
-
-HOOK_DURATION_SECONDS = 3
-
-FACE_DETECTION_SCALE = 1.1
-
-FACE_DETECTION_NEIGHBORS = 5
+os.makedirs(
+    os.path.join(
+        BASE_DIR,
+        "models"
+    ),
+    exist_ok=True
+)
