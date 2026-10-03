@@ -1,21 +1,35 @@
-venv/
+# Python
 __pycache__/
-*.pyc
-
+*.py[cod]
+.venv/
+venv/
 .env
 
-uploads/*
-!uploads/.gitkeep
+# Video files
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.webm
 
-reports/*
-!reports/.gitkeep
+# Uploaded videos
+data/uploads/
 
-instance/
+# Generated/local videos
+data/videos/
 
-.pytest_cache/
+# Generated thumbnails
+static/thumbnails/
 
-.cache/
-*.log
+# Generated model files
+models/*.joblib
+models/*.pkl
 
-.DS_Store
-Thumbs.db
+# Local database
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+*.tmp
+*.temp
