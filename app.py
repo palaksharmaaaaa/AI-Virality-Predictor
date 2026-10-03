@@ -20,6 +20,7 @@ from flask import (
     send_file,
 )
 from werkzeug.utils import secure_filename
+from ml.feature_builder import FeatureBuilder
 
 
 from config.config import Config
@@ -1025,9 +1026,12 @@ def perform_complete_analysis(
 
     try:
 
-        predictor = ViralityPredictor()
+        # Create feature builder
+        feature_builder = FeatureBuilder()
 
-        prediction = predictor.predict(
+        # Combine all analysis modules using the
+        # same feature structure expected by the model
+        combined_features = feature_builder.build(
             video_features=video_features,
             audio_features=audio_features,
             content_features=content_features,
@@ -1036,62 +1040,28 @@ def perform_complete_analysis(
             hashtag_features=hashtag_features
         )
 
+        # Create predictor
+        predictor = ViralityPredictor()
+
+        # Run ML prediction
+        prediction = predictor.predict(
+            combined_features
+        )
+
         if not isinstance(
             prediction,
             dict
         ):
             prediction = {}
 
-    except TypeError:
+    except Exception as error:
 
-        # Compatibility with predictors that expect
-        # one combined dictionary.
+        print(
+            "ML prediction error:",
+            error
+        )
 
-        try:
-
-            predictor = ViralityPredictor()
-
-            combined_features = {}
-
-            combined_features.update(
-                video_features
-            )
-
-            combined_features.update(
-                audio_features
-            )
-
-            combined_features.update(
-                content_features
-            )
-
-            combined_features.update(
-                creator_features
-            )
-
-            combined_features.update(
-                platform_features
-            )
-
-            combined_features.update(
-                hashtag_features
-            )
-
-            prediction = predictor.predict(
-                combined_features
-            )
-
-            if not isinstance(
-                prediction,
-                dict
-            ):
-                prediction = {}
-
-        except Exception:
-
-            prediction = {}
-
-    except Exception:
+        traceback.print_exc()
 
         prediction = {}
 
@@ -2777,9 +2747,7 @@ def health():
 # ============================================================
 
 if __name__ == "__main__":
-
     app.run(
-        host="127.0.0.1",
-        port=5000,
-        debug=True
+        debug=True,
+        use_reloader=False
     )

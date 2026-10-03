@@ -92,15 +92,65 @@ def init_db():
 # ---------------------------------------------------------
 # Save analysis
 # ---------------------------------------------------------
+# Compatible with current app.py:
+#
+# save_analysis(
+#     filename=original_filename,
+#     analysis_data=analysis
+# )
+# ---------------------------------------------------------
 
 def save_analysis(
     filename,
-    timestamp,
-    features,
-    prediction
+    analysis_data=None,
+    timestamp=None,
+    features=None,
+    prediction=None
 ):
 
     connection = get_connection()
+
+    # -----------------------------------------------------
+    # Current app.py format
+    # -----------------------------------------------------
+
+    if analysis_data is not None:
+
+        data = analysis_data
+
+        # Get timestamp
+        timestamp = data.get(
+            "timestamp",
+            timestamp or ""
+        )
+
+        # Get features
+        features = data.get(
+            "features",
+            {}
+        )
+
+        # Get prediction
+        prediction = data.get(
+            "prediction",
+            {}
+        )
+
+    # -----------------------------------------------------
+    # Old format compatibility
+    # -----------------------------------------------------
+
+    else:
+
+        features = features or {}
+
+        prediction = prediction or {}
+
+        timestamp = timestamp or ""
+
+    # -----------------------------------------------------
+    # Insert analysis
+    # -----------------------------------------------------
 
     cursor = connection.execute(
         """
@@ -128,31 +178,86 @@ def save_analysis(
             filename,
             timestamp,
 
-            features.get("duration", 0),
-            features.get("fps", 0),
-            features.get("width", 0),
-            features.get("height", 0),
+            features.get(
+                "duration",
+                0
+            ),
 
-            features.get("motion_score", 0),
-            features.get("scene_changes", 0),
-            features.get("hook_intensity", 0),
+            features.get(
+                "fps",
+                0
+            ),
 
-            features.get("face_count", 0),
-            features.get("face_presence_ratio", 0),
+            features.get(
+                "width",
+                0
+            ),
 
-            features.get("brightness", 0),
-            features.get("contrast", 0),
+            features.get(
+                "height",
+                0
+            ),
 
-            features.get("pacing_score", 0),
+            features.get(
+                "motion_score",
+                0
+            ),
 
-            prediction.get("virality_score", 0),
-            prediction.get("prediction_label", "Unknown")
+            features.get(
+                "scene_changes",
+                0
+            ),
+
+            features.get(
+                "hook_intensity",
+                0
+            ),
+
+            features.get(
+                "face_count",
+                0
+            ),
+
+            features.get(
+                "face_presence_ratio",
+                0
+            ),
+
+            features.get(
+                "brightness",
+                0
+            ),
+
+            features.get(
+                "contrast",
+                0
+            ),
+
+            features.get(
+                "pacing_score",
+                0
+            ),
+
+            prediction.get(
+                "virality_score",
+                0
+            ),
+
+            prediction.get(
+                "prediction_label",
+                "Unknown"
+            )
         )
     )
+
+    # -----------------------------------------------------
+    # Get newly created ID
+    # -----------------------------------------------------
 
     analysis_id = cursor.lastrowid
 
     connection.commit()
+
     connection.close()
 
     return analysis_id
@@ -187,7 +292,10 @@ def get_analysis(analysis_id):
 # ---------------------------------------------------------
 
 def get_analysis_by_id(analysis_id):
-    return get_analysis(analysis_id)
+
+    return get_analysis(
+        analysis_id
+    )
 
 
 # ---------------------------------------------------------
