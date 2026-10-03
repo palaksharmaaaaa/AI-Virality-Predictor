@@ -825,129 +825,316 @@
 
     {% endif %}
 
-
-
-
-    <!-- ================= PLATFORM ANALYSIS ================= -->
-
-    {% if platform_features %}
-
-    <section class="result-card">
+    
+    <!-- Platform-wise Virality Prediction -->
+    <section class="result-card platform-prediction-section">
 
         <div class="section-heading">
-
-            <h2>
-                📱 Platform Analysis
-            </h2>
-
+            <h2>📊 Platform-wise Virality Prediction</h2>
             <p>
-                Platform and video-format compatibility analysis.
+                Estimated viral potential of this video across different social media platforms.
             </p>
+        </div>
+
+        {% if platform_predictions %}
+
+        <div class="platform-prediction-grid">
+
+            <!-- Instagram -->
+            {% set instagram = platform_predictions.get('instagram', {}) %}
+            <div class="platform-card instagram-card">
+
+                <div class="platform-card-header">
+                    <div class="platform-title">
+                        <div class="platform-icon">📸</div>
+                        <div>
+                            <h3>Instagram</h3>
+                            <span>Reels</span>
+                        </div>
+                    </div>
+
+                    <div class="platform-score-badge">
+                        {{ instagram.get('virality_score', 0) }}/100
+                    </div>
+                </div>
+
+                <div class="platform-main-score">
+                    <strong>
+                        {{ instagram.get('virality_score', 0) }}
+                    </strong>
+                    <span>/ 100</span>
+                </div>
+
+                <div class="platform-viral-label">
+                    {{ instagram.get('virality_label', 'N/A') }}
+                </div>
+
+                <div class="platform-progress">
+                    <div
+                        class="platform-progress-bar"
+                        style="width: {{ instagram.get('virality_score', 0) }}%;"
+                    ></div>
+                </div>
+
+                <div class="platform-metrics">
+
+                    <div class="platform-metric">
+                        <span>👁 Estimated Reach</span>
+                        <strong>
+                            {{ "{:,}".format(instagram.get('estimated_reach', 0)|int) }}
+                        </strong>
+                    </div>
+
+                    <div class="platform-metric">
+                        <span>✓ Compatibility</span>
+                        <strong>
+                            {{ instagram.get('format_compatibility', 0) }}/100
+                        </strong>
+                    </div>
+
+                </div>
+
+                <div class="platform-details">
+                    <div>
+                        <span>Orientation</span>
+                        <strong>{{ instagram.get('orientation', 'N/A')|title }}</strong>
+                    </div>
+
+                    <div>
+                        <span>Format</span>
+                        <strong>{{ instagram.get('format_type', 'N/A')|title }}</strong>
+                    </div>
+                </div>
+
+            </div>
+
+
+            <!-- YouTube -->
+            {% set youtube = platform_predictions.get('youtube', {}) %}
+            <div class="platform-card youtube-card">
+
+                <div class="platform-card-header">
+                    <div class="platform-title">
+                        <div class="platform-icon">▶️</div>
+                        <div>
+                            <h3>YouTube</h3>
+                            <span>Videos & Shorts</span>
+                        </div>
+                    </div>
+
+                    <div class="platform-score-badge">
+                        {{ youtube.get('virality_score', 0) }}/100
+                    </div>
+                </div>
+
+                <div class="platform-main-score">
+                    <strong>
+                        {{ youtube.get('virality_score', 0) }}
+                    </strong>
+                    <span>/ 100</span>
+                </div>
+
+                <div class="platform-viral-label">
+                    {{ youtube.get('virality_label', 'N/A') }}
+                </div>
+
+                <div class="platform-progress">
+                    <div
+                        class="platform-progress-bar"
+                        style="width: {{ youtube.get('virality_score', 0) }}%;"
+                    ></div>
+                </div>
+
+                <div class="platform-metrics">
+
+                    <div class="platform-metric">
+                        <span>👁 Estimated Reach</span>
+                        <strong>
+                            {{ "{:,}".format(youtube.get('estimated_reach', 0)|int) }}
+                        </strong>
+                    </div>
+
+                    <div class="platform-metric">
+                        <span>✓ Compatibility</span>
+                        <strong>
+                            {{ youtube.get('format_compatibility', 0) }}/100
+                        </strong>
+                    </div>
+
+                </div>
+
+                <div class="platform-details">
+                    <div>
+                        <span>Orientation</span>
+                        <strong>{{ youtube.get('orientation', 'N/A')|title }}</strong>
+                    </div>
+
+                    <div>
+                        <span>Format</span>
+                        <strong>{{ youtube.get('format_type', 'N/A')|title }}</strong>
+                    </div>
+                </div>
+
+            </div>
+
+
+            <!-- TikTok -->
+            {% set tiktok = platform_predictions.get('tiktok', {}) %}
+            <div class="platform-card tiktok-card">
+
+                <div class="platform-card-header">
+                    <div class="platform-title">
+                        <div class="platform-icon">🎵</div>
+                        <div>
+                            <h3>TikTok</h3>
+                            <span>Short Videos</span>
+                        </div>
+                    </div>
+
+                    <div class="platform-score-badge">
+                        {{ tiktok.get('virality_score', 0) }}/100
+                    </div>
+                </div>
+
+                <div class="platform-main-score">
+                    <strong>
+                        {{ tiktok.get('virality_score', 0) }}
+                    </strong>
+                    <span>/ 100</span>
+                </div>
+
+                <div class="platform-viral-label">
+                    {{ tiktok.get('virality_label', 'N/A') }}
+                </div>
+
+                <div class="platform-progress">
+                    <div
+                        class="platform-progress-bar"
+                        style="width: {{ tiktok.get('virality_score', 0) }}%;"
+                    ></div>
+                </div>
+
+                <div class="platform-metrics">
+
+                    <div class="platform-metric">
+                        <span>👁 Estimated Reach</span>
+                        <strong>
+                            {{ "{:,}".format(tiktok.get('estimated_reach', 0)|int) }}
+                        </strong>
+                    </div>
+
+                    <div class="platform-metric">
+                        <span>✓ Compatibility</span>
+                        <strong>
+                            {{ tiktok.get('format_compatibility', 0) }}/100
+                        </strong>
+                    </div>
+
+                </div>
+
+                <div class="platform-details">
+                    <div>
+                        <span>Orientation</span>
+                        <strong>{{ tiktok.get('orientation', 'N/A')|title }}</strong>
+                    </div>
+
+                    <div>
+                        <span>Format</span>
+                        <strong>{{ tiktok.get('format_type', 'N/A')|title }}</strong>
+                    </div>
+                </div>
+
+            </div>
+
+
+            <!-- Facebook -->
+            {% set facebook = platform_predictions.get('facebook', {}) %}
+            <div class="platform-card facebook-card">
+
+                <div class="platform-card-header">
+                    <div class="platform-title">
+                        <div class="platform-icon">f</div>
+                        <div>
+                            <h3>Facebook</h3>
+                            <span>Reels & Videos</span>
+                        </div>
+                    </div>
+
+                    <div class="platform-score-badge">
+                        {{ facebook.get('virality_score', 0) }}/100
+                    </div>
+                </div>
+
+                <div class="platform-main-score">
+                    <strong>
+                        {{ facebook.get('virality_score', 0) }}
+                    </strong>
+                    <span>/ 100</span>
+                </div>
+
+                <div class="platform-viral-label">
+                    {{ facebook.get('virality_label', 'N/A') }}
+                </div>
+
+                <div class="platform-progress">
+                    <div
+                        class="platform-progress-bar"
+                        style="width: {{ facebook.get('virality_score', 0) }}%;"
+                    ></div>
+                </div>
+
+                <div class="platform-metrics">
+
+                    <div class="platform-metric">
+                        <span>👁 Estimated Reach</span>
+                        <strong>
+                            {{ "{:,}".format(facebook.get('estimated_reach', 0)|int) }}
+                        </strong>
+                    </div>
+
+                    <div class="platform-metric">
+                        <span>✓ Compatibility</span>
+                        <strong>
+                            {{ facebook.get('format_compatibility', 0) }}/100
+                        </strong>
+                    </div>
+
+                </div>
+
+                <div class="platform-details">
+                    <div>
+                        <span>Orientation</span>
+                        <strong>{{ facebook.get('orientation', 'N/A')|title }}</strong>
+                    </div>
+
+                    <div>
+                        <span>Format</span>
+                        <strong>{{ facebook.get('format_type', 'N/A')|title }}</strong>
+                    </div>
+                </div>
+
+            </div>
 
         </div>
 
-
-        <div class="metrics-grid">
-
-
-            {% if platform_features.platform is defined %}
-
-            <div class="metric">
-
-                <span>
-                    Platform
-                </span>
-
-                <strong>
-                    {{ platform_features.platform }}
-                </strong>
-
-            </div>
-
-            {% endif %}
-
-
-
-            {% if platform_features.orientation is defined %}
-
-            <div class="metric">
-
-                <span>
-                    Orientation
-                </span>
-
-                <strong>
-                    {{ platform_features.orientation }}
-                </strong>
-
-            </div>
-
-            {% endif %}
-
-
-
-            {% if platform_features.format_type is defined %}
-
-            <div class="metric">
-
-                <span>
-                    Format Type
-                </span>
-
-                <strong>
-                    {{ platform_features.format_type }}
-                </strong>
-
-            </div>
-
-            {% endif %}
-
-
-
-            {% if platform_features.platform_category is defined %}
-
-            <div class="metric">
-
-                <span>
-                    Platform Category
-                </span>
-
-                <strong>
-                    {{ platform_features.platform_category }}
-                </strong>
-
-            </div>
-
-            {% endif %}
-
-
-
-            {% if platform_features.format_compatibility is defined %}
-
-            <div class="metric">
-
-                <span>
-                    Format Compatibility
-                </span>
-
-                <strong>
-                    {{ "%.2f"|format(platform_features.format_compatibility|float) }}
-                </strong>
-
-            </div>
-
-            {% endif %}
-
+        <div class="platform-estimate-note">
+            ℹ️ Platform scores are estimated from the overall ML prediction,
+            video format compatibility, orientation, and duration.
+            They are platform-adjusted estimates, not independently trained
+            platform-specific ML models.
         </div>
+
+        {% else %}
+
+        <div class="no-platform-data">
+            <p>Platform-wise prediction data is not available for this analysis.</p>
+        </div>
+
+        {% endif %}
 
     </section>
 
-    {% endif %}
-
-
-
-
-    <!-- ================= HASHTAG ANALYSIS ================= -->
+<!--------------------------------HASHTAG ANALYSIS ================= -->
 
     {% if hashtag_features %}
 
@@ -1178,32 +1365,71 @@
 
     <!-- ================= ACTIONS ================= -->
 
-    <div class="actions">
+    <section class="result-card actions-card">
 
-        <a
-            href="{{ url_for('index') }}"
-            class="button"
-        >
-            Analyze Another Video
-        </a>
+    <div class="section-heading">
 
+        <h2>
+            📄 Generated Report
+        </h2>
+
+        <p>
+            Generate a detailed PDF report containing all video,
+            audio, content, prediction, and recommendation results.
+        </p>
+
+    </div>
+
+    <div class="action-buttons">
+
+        {% if analysis_id %}
+
+            <a
+                href="{{ url_for('report', analysis_id=analysis_id) }}"
+                class="button"
+                target="_blank"
+            >
+                📄 Generate PDF Report
+            </a>
+
+        {% else %}
+
+            <span class="button disabled-button">
+                📄 Report ID Not Available
+            </span>
+
+        {% endif %}
 
         <a
             href="{{ url_for('history') }}"
-            class="button secondary"
+            class="button secondary-button"
         >
-            View History
+            📊 View Analysis History
         </a>
+
+        <a
+            href="{{ url_for('index') }}"
+            class="button secondary-button"
+        >
+            🎥 Analyze Another Video
+        </a>
+
     </div>
 
+</section>
+</main>
 
 
+<!-- ================= FOOTER ================= -->
 
-  
+<footer class="footer">
 
+    <p>
+        AI Virality Predictor
+    </p>
 
+</footer>
 
 
 </body>
-
 </html>

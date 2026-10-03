@@ -21,6 +21,7 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 
+
 from config.config import Config
 
 from database.database import (
@@ -36,7 +37,7 @@ from video.thumbnail import generate_thumbnail
 
 from content.content_analyzer import ContentAnalyzer
 from creator.creator_analyzer import CreatorAnalyzer
-from platform_analysis.platform_analyzer import PlatformAnalyzer
+from platform_analysis.platform_analyzer import PlatformAnalyzer,analyze_all_platforms
 from hashtag.hashtag_analyzer import HashtagAnalyzer
 
 from ml.predict import ViralityPredictor
@@ -391,7 +392,7 @@ def analyze_audio(video_path):
 
 def analyze_transcript(video_path):
     """
-    Run Whisper transcription silently.
+    Run Qwen3-ASR transcription silently.
 
     Transcript is returned to the application/UI
     but is NOT printed in the terminal.
@@ -399,10 +400,7 @@ def analyze_transcript(video_path):
 
     try:
 
-        result = transcribe_video(
-            video_path,
-            model_name="small"
-        )
+        result = transcribe_video(video_path)
 
         if not isinstance(result, dict):
 
@@ -438,17 +436,13 @@ def analyze_transcript(video_path):
 # CONTENT ANALYSIS
 # ============================================================
 
-def analyze_content(transcript):
-    """
-    Analyze transcript content silently.
-    """
-
+def analyze_content(transcript, duration=0):
     try:
-
         transcript = transcript or ""
 
         analyzer = ContentAnalyzer(
-            transcript
+            transcript=transcript,
+            duration=duration
         )
 
         content_features = analyzer.analyze()
@@ -529,6 +523,85 @@ def analyze_platform(
 
     except Exception:
         return {}
+
+
+
+# ============================================================
+# PLATFORM-WISE VIRALITY PREDICTION
+# ============================================================
+
+def analyze_all_platform_predictions(
+    video_features,
+    prediction,
+    category="general"
+):
+    """
+    Generate platform-wise virality estimates.
+
+    The overall ML prediction is used as the baseline.
+    PlatformAnalyzer then adjusts the baseline according
+    to platform/video-format compatibility.
+    """
+
+    video_features = safe_dict(video_features)
+    prediction = safe_dict(prediction)
+
+    duration = safe_float(
+        video_features.get(
+            "duration",
+            0
+        )
+    )
+
+    width = safe_int(
+        video_features.get(
+            "width",
+            0
+        )
+    )
+
+    height = safe_int(
+        video_features.get(
+            "height",
+            0
+        )
+    )
+
+    base_score = safe_float(
+        prediction.get(
+            "virality_score",
+            0
+        )
+    )
+
+    estimated_views = safe_float(
+        prediction.get(
+            "estimated_views",
+            0
+        )
+    )
+
+    try:
+
+        return analyze_all_platforms(
+            duration=duration,
+            width=width,
+            height=height,
+            base_virality_score=base_score,
+            overall_estimated_views=estimated_views,
+            category=category
+        )
+
+    except Exception as error:
+
+        print(
+            "Platform-wise prediction error:",
+            error
+        )
+
+        return {}
+
+
 
 
 # ============================================================
@@ -1022,8 +1095,26 @@ def perform_complete_analysis(
 
         prediction = {}
 
+
+
     # --------------------------------------------------------
-    # 9. RECOMMENDATIONS
+    # 9. PLATFORM-WISE VIRALITY PREDICTION
+    # --------------------------------------------------------
+
+    platform_predictions = analyze_all_platform_predictions(
+        video_features=video_features,
+        prediction=prediction,
+        category=category
+    )
+
+    platform_predictions = safe_dict(
+        platform_predictions
+    )
+
+
+
+    # --------------------------------------------------------
+    # 10. RECOMMENDATIONS
     # --------------------------------------------------------
 
     recommendations = generate_recommendations(
@@ -1036,40 +1127,32 @@ def perform_complete_analysis(
     )
 
     # --------------------------------------------------------
-    # 10. FINAL RESULT
+    # 11. FINAL RESULT
     # --------------------------------------------------------
 
     analysis = {
 
-        "video_features":
-            video_features,
+        "video_features": video_features,
 
-        "audio_features":
-            audio_features,
+        "audio_features": audio_features,
 
-        "transcript_result":
-            transcript_result,
+        "transcript_result":transcript_result,
 
-        "transcript":
-            transcript,
+        "transcript":transcript,
 
-        "content_features":
-            content_features,
+        "content_features": content_features,
 
-        "creator_features":
-            creator_features,
+        "creator_features": creator_features,
 
-        "platform_features":
-            platform_features,
+        "platform_features": platform_features,
 
-        "hashtag_features":
-            hashtag_features,
+        "platform_predictions": platform_predictions,
 
-        "prediction":
-            prediction,
+        "hashtag_features": hashtag_features,
 
-        "recommendations":
-            recommendations
+        "prediction": prediction,
+
+        "recommendations":  recommendations
     }
 
     return analysis
@@ -1303,6 +1386,10 @@ def analyze():
             "prediction",
             {}
         ),
+        platform_predictions=analysis.get(
+            "platform_predictions",
+            {}
+        ),
 
         features=analysis.get(
             "video_features",
@@ -1457,6 +1544,10 @@ def analysis_detail(
             {}
         ),
 
+        platform_predictions=analysis_data.get(
+            "platform_predictions",
+            {}
+        ),
         features=analysis_data.get(
             "video_features",
             {}
@@ -1597,17 +1688,28 @@ def api_history():
         }), 500
 
 
-
 @app.route("/report/<int:analysis_id>")
 def report(analysis_id):
 
-    analysis = get_analysis_by_id(analysis_id)
-
-    if not analysis:
-        flash("Analysis record not found.")
-        return redirect(url_for("history"))
-
     try:
+        # =========================================================
+        # GET ANALYSIS
+        # =========================================================
+
+        analysis = get_analysis_by_id(analysis_id)
+
+        if not analysis:
+            flash("Analysis record not found.")
+            return redirect(url_for("history"))
+
+        # =========================================================
+        # IMPORTS
+        # =========================================================
+
+        import os
+        import json
+        from datetime import datetime
+
         from reportlab.lib.pagesizes import A4
         from reportlab.lib import colors
         from reportlab.lib.styles import getSampleStyleSheet
@@ -1619,39 +1721,202 @@ def report(analysis_id):
             TableStyle
         )
 
-        import os
-        from datetime import datetime
+        # =========================================================
+        # FIND PROJECT ROOT
+        # =========================================================
 
-        reports_dir = os.path.join(
-            Config.UPLOAD_FOLDER,
-            "..",
-            "reports"
+        project_root = os.path.dirname(
+            os.path.abspath(__file__)
         )
 
-        reports_dir = os.path.abspath(reports_dir)
+        reports_dir = os.path.join(
+            project_root,
+            "reports"
+        )
 
         os.makedirs(
             reports_dir,
             exist_ok=True
         )
 
-        pdf_path = os.path.join(
-            reports_dir,
+        # =========================================================
+        # PDF PATH
+        # =========================================================
+
+        pdf_filename = (
             f"virality_report_{analysis_id}.pdf"
         )
+
+        pdf_path = os.path.join(
+            reports_dir,
+            pdf_filename
+        )
+
+        # =========================================================
+        # DEBUG
+        # =========================================================
+
+        print("=" * 60)
+        print("GENERATING PDF REPORT")
+        print("Analysis ID:", analysis_id)
+        print("Analysis type:", type(analysis))
+        print("PDF path:", pdf_path)
+        print("=" * 60)
+
+        # =========================================================
+        # READ ANALYSIS DATA
+        # =========================================================
+
+        if isinstance(analysis, dict):
+
+            analysis_data = analysis
+
+        else:
+
+            # -----------------------------------------------------
+            # SQLAlchemy / object based result
+            # -----------------------------------------------------
+
+            if hasattr(
+                analysis,
+                "analysis_data"
+            ):
+
+                raw_data = analysis.analysis_data
+
+                if isinstance(
+                    raw_data,
+                    str
+                ):
+
+                    try:
+                        analysis_data = json.loads(
+                            raw_data
+                        )
+
+                    except Exception:
+
+                        analysis_data = {}
+
+                elif isinstance(
+                    raw_data,
+                    dict
+                ):
+
+                    analysis_data = raw_data
+
+                else:
+
+                    analysis_data = {}
+
+            else:
+
+                analysis_data = {}
+
+        if not isinstance(
+            analysis_data,
+            dict
+        ):
+            analysis_data = {}
+
+        # =========================================================
+        # EXTRACT DATA
+        # =========================================================
+
+        prediction = analysis_data.get(
+            "prediction",
+            {}
+        )
+
+        video_features = analysis_data.get(
+            "video_features",
+            {}
+        )
+
+        audio_features = analysis_data.get(
+            "audio_features",
+            {}
+        )
+
+        content_features = analysis_data.get(
+            "content_features",
+            {}
+        )
+
+        platform_predictions = analysis_data.get(
+            "platform_predictions",
+            {}
+        )
+
+        transcript = analysis_data.get(
+            "transcript",
+            ""
+        )
+
+        recommendations = analysis_data.get(
+            "recommendations",
+            []
+        )
+
+        # Safety
+
+        if not isinstance(
+            prediction,
+            dict
+        ):
+            prediction = {}
+
+        if not isinstance(
+            video_features,
+            dict
+        ):
+            video_features = {}
+
+        if not isinstance(
+            audio_features,
+            dict
+        ):
+            audio_features = {}
+
+        if not isinstance(
+            content_features,
+            dict
+        ):
+            content_features = {}
+
+        if not isinstance(
+            platform_predictions,
+            dict
+        ):
+            platform_predictions = {}
+
+        # =========================================================
+        # DOCUMENT
+        # =========================================================
 
         doc = SimpleDocTemplate(
             pdf_path,
             pagesize=A4,
+
             rightMargin=40,
             leftMargin=40,
+
             topMargin=40,
-            bottomMargin=40
+            bottomMargin=40,
+
+            title=(
+                f"AI Virality Predictor "
+                f"Report {analysis_id}"
+            )
         )
 
         styles = getSampleStyleSheet()
 
         story = []
+
+        # =========================================================
+        # TITLE
+        # =========================================================
 
         story.append(
             Paragraph(
@@ -1673,14 +1938,16 @@ def report(analysis_id):
 
         story.append(
             Paragraph(
-                f"<b>Analysis ID:</b> {analysis_id}",
+                f"<b>Analysis ID:</b> "
+                f"{analysis_id}",
                 styles["Normal"]
             )
         )
 
         story.append(
             Paragraph(
-                f"<b>Generated:</b> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+                f"<b>Generated:</b> "
+                f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
                 styles["Normal"]
             )
         )
@@ -1689,37 +1956,9 @@ def report(analysis_id):
             Spacer(1, 20)
         )
 
-        # ------------------------------------------------
-        # Safely read stored analysis
-        # ------------------------------------------------
-
-        if isinstance(analysis, dict):
-
-            prediction = analysis.get(
-                "prediction",
-                {}
-            )
-
-            features = analysis.get(
-                "video_features",
-                {}
-            )
-
-        else:
-
-            prediction = {}
-
-            features = {}
-
-        if not isinstance(prediction, dict):
-            prediction = {}
-
-        if not isinstance(features, dict):
-            features = {}
-
-        # ------------------------------------------------
-        # Prediction
-        # ------------------------------------------------
+        # =========================================================
+        # OVERALL VIRALITY PREDICTION
+        # =========================================================
 
         story.append(
             Paragraph(
@@ -1728,49 +1967,65 @@ def report(analysis_id):
             )
         )
 
+        virality_score = prediction.get(
+            "virality_score",
+            0
+        )
+
+        estimated_views = prediction.get(
+            "estimated_views",
+            0
+        )
+
+        prediction_label = prediction.get(
+            "prediction_label",
+            prediction.get(
+                "virality_label",
+                "Unknown"
+            )
+        )
+
+        model_name = prediction.get(
+            "model_type",
+            prediction.get(
+                "model_name",
+                prediction.get(
+                    "model",
+                    "Unknown"
+                )
+            )
+        )
+
         prediction_data = [
             ["Metric", "Value"],
+
             [
                 "Virality Score",
-                str(
-                    prediction.get(
-                        "virality_score",
-                        0
-                    )
-                )
+                f"{virality_score} / 100"
             ],
+
             [
                 "Prediction Label",
-                str(
-                    prediction.get(
-                        "prediction_label",
-                        "Unknown"
-                    )
-                )
+                str(prediction_label)
             ],
+
             [
                 "Estimated Views",
-                str(
-                    prediction.get(
-                        "estimated_views",
-                        0
-                    )
-                )
+                f"{int(float(estimated_views or 0)):,}"
             ],
+
             [
                 "Model",
-                str(
-                    prediction.get(
-                        "model_type",
-                        "Unknown"
-                    )
-                )
+                str(model_name)
             ]
         ]
 
         table = Table(
             prediction_data,
-            colWidths=[220, 250]
+            colWidths=[
+                220,
+                250
+            ]
         )
 
         table.setStyle(
@@ -1781,6 +2036,7 @@ def report(analysis_id):
                     (-1, 0),
                     colors.lightgrey
                 ),
+
                 (
                     "GRID",
                     (0, 0),
@@ -1788,6 +2044,7 @@ def report(analysis_id):
                     0.5,
                     colors.grey
                 ),
+
                 (
                     "PADDING",
                     (0, 0),
@@ -1803,9 +2060,9 @@ def report(analysis_id):
             Spacer(1, 20)
         )
 
-        # ------------------------------------------------
-        # Video Features
-        # ------------------------------------------------
+        # =========================================================
+        # VIDEO ANALYSIS
+        # =========================================================
 
         story.append(
             Paragraph(
@@ -1816,60 +2073,135 @@ def report(analysis_id):
 
         video_data = [
             ["Feature", "Value"],
+
             [
                 "Duration",
-                f"{features.get('duration', 0)} sec"
+                f"{video_features.get('duration', 0)} sec"
             ],
+
             [
                 "FPS",
-                str(features.get("fps", 0))
+                str(
+                    video_features.get(
+                        "fps",
+                        0
+                    )
+                )
             ],
+
             [
                 "Resolution",
-                f"{features.get('width', 0)} x "
-                f"{features.get('height', 0)}"
+                f"{video_features.get('width', 0)} x "
+                f"{video_features.get('height', 0)}"
             ],
+
             [
                 "Motion Score",
-                str(features.get("motion_score", 0))
+                str(
+                    video_features.get(
+                        "motion_score",
+                        0
+                    )
+                )
             ],
+
             [
                 "Scene Changes",
-                str(features.get("scene_changes", 0))
+                str(
+                    video_features.get(
+                        "scene_changes",
+                        0
+                    )
+                )
             ],
+
             [
                 "Scene Change Rate",
-                str(features.get("scene_change_rate", 0))
+                str(
+                    video_features.get(
+                        "scene_change_rate",
+                        0
+                    )
+                )
             ],
+
             [
                 "Hook Intensity",
-                str(features.get("hook_intensity", 0))
+                str(
+                    video_features.get(
+                        "hook_intensity",
+                        0
+                    )
+                )
             ],
+
+            [
+                "Person Count",
+                str(
+                    video_features.get(
+                        "person_count",
+                        0
+                    )
+                )
+            ],
+
             [
                 "Face Count",
-                str(features.get("face_count", 0))
+                str(
+                    video_features.get(
+                        "face_count",
+                        0
+                    )
+                )
             ],
+
             [
                 "Face Presence",
-                str(features.get("face_presence_ratio", 0))
+                str(
+                    video_features.get(
+                        "face_presence_ratio",
+                        0
+                    )
+                )
             ],
+
             [
                 "Brightness",
-                str(features.get("brightness", 0))
+                str(
+                    video_features.get(
+                        "brightness",
+                        0
+                    )
+                )
             ],
+
             [
                 "Contrast",
-                str(features.get("contrast", 0))
+                str(
+                    video_features.get(
+                        "contrast",
+                        0
+                    )
+                )
             ],
+
             [
                 "Pacing Score",
-                str(features.get("pacing_score", 0))
+                str(
+                    video_features.get(
+                        "pacing_score",
+                        0
+                    )
+                )
             ]
         ]
 
         table = Table(
             video_data,
-            colWidths=[220, 250]
+            colWidths=[
+                220,
+                250
+            ]
         )
 
         table.setStyle(
@@ -1880,6 +2212,7 @@ def report(analysis_id):
                     (-1, 0),
                     colors.lightgrey
                 ),
+
                 (
                     "GRID",
                     (0, 0),
@@ -1887,6 +2220,7 @@ def report(analysis_id):
                     0.5,
                     colors.grey
                 ),
+
                 (
                     "PADDING",
                     (0, 0),
@@ -1902,27 +2236,514 @@ def report(analysis_id):
             Spacer(1, 20)
         )
 
+        # =========================================================
+        # AUDIO ANALYSIS
+        # =========================================================
+
         story.append(
             Paragraph(
-                "This report contains automatically extracted "
-                "video characteristics and machine-learning "
-                "prediction results.",
+                "Audio Analysis",
+                styles["Heading2"]
+            )
+        )
+
+        audio_data = [
+            ["Feature", "Value"],
+
+            [
+                "Audio Available",
+                str(
+                    audio_features.get(
+                        "audio_available",
+                        "N/A"
+                    )
+                )
+            ],
+
+            [
+                "Speech Ratio",
+                str(
+                    audio_features.get(
+                        "speech_ratio",
+                        0
+                    )
+                )
+            ],
+
+            [
+                "Silence Ratio",
+                str(
+                    audio_features.get(
+                        "silence_ratio",
+                        0
+                    )
+                )
+            ],
+
+            [
+                "Music Ratio",
+                str(
+                    audio_features.get(
+                        "music_ratio",
+                        0
+                    )
+                )
+            ]
+        ]
+
+        table = Table(
+            audio_data,
+            colWidths=[
+                220,
+                250
+            ]
+        )
+
+        table.setStyle(
+            TableStyle([
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    colors.lightgrey
+                ),
+
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    0.5,
+                    colors.grey
+                ),
+
+                (
+                    "PADDING",
+                    (0, 0),
+                    (-1, -1),
+                    8
+                )
+            ])
+        )
+
+        story.append(table)
+
+        story.append(
+            Spacer(1, 20)
+        )
+
+        # =========================================================
+        # CONTENT ANALYSIS
+        # =========================================================
+
+        story.append(
+            Paragraph(
+                "Content & Transcript Analysis",
+                styles["Heading2"]
+            )
+        )
+
+        content_data = [
+            ["Feature", "Value"],
+
+            [
+                "Word Count",
+                str(
+                    content_features.get(
+                        "word_count",
+                        0
+                    )
+                )
+            ],
+
+            [
+                "Sentence Count",
+                str(
+                    content_features.get(
+                        "sentence_count",
+                        0
+                    )
+                )
+            ],
+
+            [
+                "Vocabulary Diversity",
+                str(
+                    content_features.get(
+                        "vocabulary_diversity",
+                        0
+                    )
+                )
+            ],
+
+            [
+                "Hook Score",
+                str(
+                    content_features.get(
+                        "hook_score",
+                        0
+                    )
+                )
+            ],
+
+            [
+                "CTA Score",
+                str(
+                    content_features.get(
+                        "cta_score",
+                        0
+                    )
+                )
+            ],
+
+            [
+                "Sentiment Score",
+                str(
+                    content_features.get(
+                        "sentiment_score",
+                        0
+                    )
+                )
+            ],
+
+            [
+                "Transcript Quality",
+                str(
+                    content_features.get(
+                        "transcript_quality",
+                        0
+                    )
+                )
+            ]
+        ]
+
+        table = Table(
+            content_data,
+            colWidths=[
+                220,
+                250
+            ]
+        )
+
+        table.setStyle(
+            TableStyle([
+                (
+                    "BACKGROUND",
+                    (0, 0),
+                    (-1, 0),
+                    colors.lightgrey
+                ),
+
+                (
+                    "GRID",
+                    (0, 0),
+                    (-1, -1),
+                    0.5,
+                    colors.grey
+                ),
+
+                (
+                    "PADDING",
+                    (0, 0),
+                    (-1, -1),
+                    8
+                )
+            ])
+        )
+
+        story.append(table)
+
+        # =========================================================
+        # TRANSCRIPT
+        # =========================================================
+
+        if transcript:
+
+            story.append(
+                Spacer(1, 15)
+            )
+
+            story.append(
+                Paragraph(
+                    "Transcript",
+                    styles["Heading2"]
+                )
+            )
+
+            # ReportLab's default Helvetica does not support
+            # Hindi/Devanagari reliably.
+            # Therefore keep transcript in a safe basic form
+            # if Unicode rendering is unavailable.
+
+            safe_transcript = (
+                str(transcript)
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+            )
+
+            story.append(
+                Paragraph(
+                    safe_transcript,
+                    styles["Normal"]
+                )
+            )
+
+        # =========================================================
+        # PLATFORM-WISE VIRALITY
+        # =========================================================
+
+        if platform_predictions:
+
+            story.append(
+                Spacer(1, 25)
+            )
+
+            story.append(
+                Paragraph(
+                    "Platform-wise Virality Prediction",
+                    styles["Heading2"]
+                )
+            )
+
+            platform_rows = [
+                [
+                    "Platform",
+                    "Score",
+                    "Estimated Reach",
+                    "Compatibility"
+                ]
+            ]
+
+            platform_names = {
+                "instagram": "Instagram",
+                "youtube": "YouTube",
+                "tiktok": "TikTok",
+                "facebook": "Facebook"
+            }
+
+            for (
+                platform_key,
+                platform_data
+            ) in platform_predictions.items():
+
+                if not isinstance(
+                    platform_data,
+                    dict
+                ):
+                    continue
+
+                score = platform_data.get(
+                    "virality_score",
+                    0
+                )
+
+                reach = platform_data.get(
+                    "estimated_reach",
+                    0
+                )
+
+                compatibility = platform_data.get(
+                    "format_compatibility",
+                    0
+                )
+
+                platform_rows.append(
+                    [
+                        platform_names.get(
+                            platform_key,
+                            platform_key.title()
+                        ),
+
+                        f"{score} / 100",
+
+                        f"{int(float(reach or 0)):,}",
+
+                        f"{compatibility} / 100"
+                    ]
+                )
+
+            if len(platform_rows) > 1:
+
+                table = Table(
+                    platform_rows,
+                    colWidths=[
+                        120,
+                        100,
+                        150,
+                        100
+                    ]
+                )
+
+                table.setStyle(
+                    TableStyle([
+                        (
+                            "BACKGROUND",
+                            (0, 0),
+                            (-1, 0),
+                            colors.lightgrey
+                        ),
+
+                        (
+                            "GRID",
+                            (0, 0),
+                            (-1, -1),
+                            0.5,
+                            colors.grey
+                        ),
+
+                        (
+                            "PADDING",
+                            (0, 0),
+                            (-1, -1),
+                            8
+                        )
+                    ])
+                )
+
+                story.append(table)
+
+        # =========================================================
+        # RECOMMENDATIONS
+        # =========================================================
+
+        if recommendations:
+
+            story.append(
+                Spacer(1, 20)
+            )
+
+            story.append(
+                Paragraph(
+                    "Recommendations",
+                    styles["Heading2"]
+                )
+            )
+
+            if isinstance(
+                recommendations,
+                list
+            ):
+
+                for recommendation in recommendations:
+
+                    if isinstance(
+                        recommendation,
+                        dict
+                    ):
+
+                        recommendation_text = (
+                            recommendation.get(
+                                "text",
+                                recommendation.get(
+                                    "recommendation",
+                                    str(recommendation)
+                                )
+                            )
+                        )
+
+                    else:
+
+                        recommendation_text = str(
+                            recommendation
+                        )
+
+                    story.append(
+                        Paragraph(
+                            "• " +
+                            str(
+                                recommendation_text
+                            ),
+                            styles["Normal"]
+                        )
+                    )
+
+                    story.append(
+                        Spacer(1, 5)
+                    )
+
+        # =========================================================
+        # FINAL NOTE
+        # =========================================================
+
+        story.append(
+            Spacer(1, 20)
+        )
+
+        story.append(
+            Paragraph(
+                "This report contains automatically "
+                "extracted video characteristics, "
+                "audio/content analysis, platform-adjusted "
+                "estimates and machine-learning prediction "
+                "results.",
                 styles["Normal"]
             )
         )
 
+        # =========================================================
+        # BUILD PDF
+        # =========================================================
+
         doc.build(story)
+
+        # =========================================================
+        # CHECK PDF
+        # =========================================================
+
+        if not os.path.exists(pdf_path):
+
+            raise RuntimeError(
+                "PDF file was not created."
+            )
+
+        file_size = os.path.getsize(
+            pdf_path
+        )
+
+        print(
+            "PDF generated successfully:"
+        )
+
+        print(
+            "Path:",
+            pdf_path
+        )
+
+        print(
+            "Size:",
+            file_size,
+            "bytes"
+        )
+
+        if file_size == 0:
+
+            raise RuntimeError(
+                "Generated PDF file is empty."
+            )
+
+        # =========================================================
+        # SEND PDF TO BROWSER
+        # =========================================================
 
         return send_file(
             pdf_path,
+
             as_attachment=True,
-            download_name=(
-                f"virality_report_{analysis_id}.pdf"
-            ),
+
+            download_name=pdf_filename,
+
             mimetype="application/pdf"
         )
 
     except Exception as error:
+
+        import traceback
+
+        print("=" * 60)
+        print("PDF REPORT ERROR")
+        print("=" * 60)
+
+        traceback.print_exc()
 
         flash(
             f"PDF report generation failed: {error}"
@@ -1930,7 +2751,7 @@ def report(analysis_id):
 
         return redirect(
             url_for(
-                "analysis",
+                "analysis_detail",
                 analysis_id=analysis_id
             )
         )

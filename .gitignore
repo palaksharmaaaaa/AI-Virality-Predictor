@@ -1,72 +1,21 @@
-# Virtual environment
-
 venv/
-.venv/
-env/
-
-# Python cache
-
-**pycache**/
-*.py[cod]
-*$py.class
-
-# IDE
-
-.vscode/
-.idea/
-
-# Environment / secrets
+__pycache__/
+*.pyc
 
 .env
-.env.*
-
-# Logs
-
-*.log
-
-# Generated video thumbnails
-
-static/thumbnails/*
-!static/thumbnails/.gitkeep
-
-# Uploaded videos
 
 uploads/*
 !uploads/.gitkeep
 
-# Generated PDF reports
+reports/*
+!reports/.gitkeep
 
-reports/generated/*
-!reports/generated/.gitkeep
+instance/
 
-# Generated feature data
+.pytest_cache/
 
-video_features.csv
-
-# Local SQLite database
-
-database/*.db
-
-# Trained ML models
-
-models/*.joblib
-models/*.pkl
-
-# Temporary files
-
-*.tmp
-*.temp
-
-# OS files
+.cache/
+*.log
 
 .DS_Store
 Thumbs.db
-desktop.ini
-
-# Project inspection file
-
-project_structure.txt
-
-# Training videos
-data/videos/*
-!data/videos/.gitkeep

@@ -2,632 +2,760 @@ import re
 from collections import Counter
 
 
-class ContentAnalyzer:
+# ============================================================
+# CTA PATTERNS - ENGLISH + HINDI + HINGLISH
+# ============================================================
 
-    def __init__(self, transcript=""):
+CTA_PATTERNS = [
+    # English
+    r"\bfollow\b",
+    r"\bsubscribe\b",
+    r"\blike\b",
+    r"\bcomment\b",
+    r"\bshare\b",
+    r"\bsave\b",
+    r"\bclick\b",
+    r"\blink in bio\b",
+    r"\bcheck out\b",
+    r"\blet me know\b",
+    r"\bjoin\b",
+    r"\bdownload\b",
+    r"\btry\b",
+    r"\bvisit\b",
+    r"\bwatch\b",
+    r"\bcheck\b",
 
-        self.transcript = (
-            transcript or ""
-        ).strip()
+    # Hindi
+    r"फॉलो",
+    r"फॉलो करें",
+    r"सब्सक्राइब",
+    r"सब्सक्राइब करें",
+    r"लाइक",
+    r"लाइक करें",
+    r"कमेंट",
+    r"कमेंट करें",
+    r"शेयर",
+    r"शेयर करें",
+    r"सेव",
+    r"सेव करें",
+    r"डाउनलोड",
+    r"चेक करें",
+    r"बताएं",
+    r"बताइए",
+    r"जुड़ें",
+    r"देखें",
+    r"जरूर देखें",
 
-        self.words = self._get_words()
+    # Common Hinglish
+    r"\blike karo\b",
+    r"\blike karna\b",
+    r"\bcomment karo\b",
+    r"\bcomment karna\b",
+    r"\bshare karo\b",
+    r"\bshare karna\b",
+    r"\bfollow karo\b",
+    r"\bfollow karna\b",
+    r"\bsubscribe karo\b",
+    r"\bsubscribe karna\b",
+    r"\bchannel ko subscribe\b",
+]
 
-    # =====================================================
-    # BASIC WORD EXTRACTION
-    # =====================================================
 
-    def _get_words(self):
+# ============================================================
+# FILLER WORDS - ENGLISH + HINDI + HINGLISH
+# ============================================================
 
-        return re.findall(
-            r"\b[a-zA-ZÀ-ÿ']+\b",
-            self.transcript.lower()
-        )
+FILLER_WORDS = {
+    # English
+    "um",
+    "uh",
+    "erm",
+    "hmm",
+    "like",
+    "you know",
+    "basically",
+    "actually",
+    "literally",
 
-    # =====================================================
-    # WORD COUNT
-    # =====================================================
+    # Hindi
+    "उम",
+    "अं",
+    "हम्म",
+    "मतलब",
+    "यानि",
+    "यानी",
+    "असल में",
 
-    def word_count(self):
+    # Hinglish
+    "matlab",
+    "yaani",
+    "basically",
+    "actually",
+}
 
-        return len(self.words)
 
-    # =====================================================
-    # UNIQUE WORDS
-    # =====================================================
+# ============================================================
+# STOPWORDS - ENGLISH + HINDI
+# ============================================================
 
-    def unique_word_count(self):
+STOPWORDS = {
+    # English
+    "the", "a", "an", "is", "are", "was", "were",
+    "to", "of", "and", "or", "in", "on", "for",
+    "with", "this", "that", "you", "your", "it",
+    "i", "we", "they", "he", "she", "her",
+    "his", "their", "my", "our", "me", "be",
+    "been", "from", "as", "at", "by", "but",
+    "if", "then", "so", "than", "about", "into",
+    "can", "will", "would", "could", "should",
+    "do", "does", "did",
 
-        return len(
-            set(self.words)
-        )
+    # Hindi
+    "का", "के", "की", "को", "से", "में", "पर",
+    "और", "या", "यह", "वह", "ये", "वे",
+    "मैं", "हम", "आप", "तुम", "मुझे", "हमें",
+    "आपको", "तुम्हें", "था", "थी", "थे",
+    "है", "हैं", "हो", "कर", "करना", "करते",
+    "एक", "इस", "उस", "तो", "भी", "ही",
+    "जो", "कि", "नहीं", "अगर", "जब", "तक",
+    "लेकिन", "अब", "बहुत", "साथ",
+}
 
-    # =====================================================
-    # VOCABULARY DIVERSITY
-    # =====================================================
 
-    def vocabulary_diversity(self):
+# ============================================================
+# TEXT CLEANING
+# ============================================================
 
-        if not self.words:
-            return 0.0
+def clean_text(text):
+    if not text:
+        return ""
 
-        return round(
-            len(set(self.words))
-            / len(self.words),
-            3
-        )
+    text = str(text)
 
-    # =====================================================
-    # SENTENCE COUNT
-    # =====================================================
+    # Remove Qwen / model special tokens
+    special_tokens = [
+        "<|im_end|>",
+        "<|endoftext|>",
+        "<|im_start|>",
+        "<|end|>",
+    ]
 
-    def sentence_count(self):
+    for token in special_tokens:
+        text = text.replace(token, " ")
 
-        if not self.transcript:
-            return 0
+    # Normalize excessive whitespace
+    text = re.sub(r"\s+", " ", text)
 
-        sentences = re.split(
-            r"[.!?]+",
-            self.transcript
-        )
+    return text.strip()
 
-        return len([
-            x for x in sentences
-            if x.strip()
-        ])
 
-    # =====================================================
-    # FILLER WORDS
-    # =====================================================
+# ============================================================
+# WORD TOKENIZATION
+# ============================================================
 
-    def filler_word_analysis(self):
+def split_words(text):
+    """
+    Unicode-aware tokenizer.
 
-        filler_words = {
-            "um",
-            "uh",
-            "umm",
-            "like",
-            "actually",
-            "basically",
-            "you know",
-            "i mean",
-            "so"
-        }
+    Supports:
+    - English
+    - Hindi
+    - Hinglish
+    - Other Unicode languages
+    - Numbers
+    - Apostrophes / hyphens inside words
+    """
 
-        text = self.transcript.lower()
+    if not text:
+        return []
 
-        count = 0
+    return re.findall(
+        r"[^\W\d_]+(?:['’-][^\W\d_]+)*|\d+(?:\.\d+)?",
+        text.lower(),
+        flags=re.UNICODE,
+    )
 
-        for filler in filler_words:
 
-            if " " in filler:
+# ============================================================
+# CTA DETECTION
+# ============================================================
 
-                count += text.count(
-                    filler
-                )
+def detect_cta(text):
 
-            else:
+    if not text:
+        return []
 
-                count += self.words.count(
-                    filler
-                )
+    text_lower = text.lower()
 
-        total_words = len(self.words)
+    found = []
 
-        ratio = (
-            count / total_words
-            if total_words > 0
-            else 0
-        )
+    for pattern in CTA_PATTERNS:
 
-        return {
-            "filler_word_count": count,
-            "filler_word_ratio": round(
-                ratio,
-                3
-            )
-        }
-
-    # =====================================================
-    # HOOK ANALYSIS
-    # =====================================================
-
-    def hook_analysis(self):
-
-        if not self.transcript:
-
-            return {
-                "hook_present": False,
-                "hook_score": 0,
-                "hook_type": "none"
-            }
-
-        first_part = " ".join(
-            self.words[:30]
-        )
-
-        hook_words = [
-
-            "how",
-            "why",
-            "what",
-            "secret",
-            "mistake",
-            "learn",
-            "stop",
-            "never",
-            "best",
-            "top",
-            "easy",
-            "important",
-            "truth",
-            "problem",
-            "hack",
-            "tips",
-            "watch",
-            "wait",
-            "before"
-        ]
-
-        question_words = [
-            "how",
-            "why",
-            "what",
-            "when",
-            "where",
-            "who"
-        ]
-
-        score = 0
-        hook_type = "none"
-
-        # Question hook
-        if "?" in self.transcript[:250]:
-
-            score += 35
-            hook_type = "question"
-
-        # Strong hook words
-        found_words = [
-
-            word
-            for word in hook_words
-            if word in first_part
-        ]
-
-        if found_words:
-
-            score += min(
-                len(found_words) * 15,
-                45
-            )
-
-            if hook_type == "none":
-                hook_type = "curiosity"
-
-        # Number/list hook
         if re.search(
-            r"\b\d+\b",
-            first_part
+            pattern,
+            text_lower,
+            flags=re.UNICODE
         ):
+            clean_pattern = pattern
 
-            score += 20
+            clean_pattern = clean_pattern.replace(
+                r"\b",
+                ""
+            )
 
-            if hook_type == "none":
-                hook_type = "list"
+            found.append(clean_pattern)
 
-        score = min(
-            score,
-            100
-        )
+    return list(dict.fromkeys(found))
 
+
+def calculate_cta_score(text):
+
+    if not text:
+        return 0.0
+
+    ctas = detect_cta(text)
+
+    if not ctas:
+        return 0.0
+
+    # Maximum score = 100
+    score = min(len(ctas) * 20, 100)
+
+    return float(score)
+
+
+# ============================================================
+# SPEECH DENSITY
+# ============================================================
+
+def calculate_speech_density(text, duration):
+
+    if duration <= 0:
+        return 0.0
+
+    words = split_words(text)
+
+    if not words:
+        return 0.0
+
+    words_per_second = len(words) / duration
+
+    return round(words_per_second, 3)
+
+
+# ============================================================
+# HOOK DETECTION
+# ============================================================
+
+def detect_hook(text):
+
+    if not text:
         return {
-            "hook_present": score >= 30,
-            "hook_score": score,
-            "hook_type": hook_type
+            "has_hook": False,
+            "hook_score": 0
         }
 
-    # =====================================================
-    # CTA ANALYSIS
-    # =====================================================
+    # First ~30 words are treated as opening/hook
+    first_part = " ".join(
+        text.split()[:30]
+    ).lower()
 
-    def cta_analysis(self):
+    hook_patterns = [
 
-        if not self.transcript:
+        # English
+        r"\bhow\b",
+        r"\bwhy\b",
+        r"\bwhat if\b",
+        r"\bdid you know\b",
+        r"\bsecret\b",
+        r"\bmistake\b",
+        r"\bstop\b",
+        r"\bnever\b",
+        r"\byou need to\b",
+        r"\bhere's\b",
+        r"\btoday\b",
+        r"\bwatch\b",
+        r"\blearn\b",
+        r"\bdiscover\b",
+        r"\bimportant\b",
+        r"\bproblem\b",
+        r"\bsolution\b",
+        r"\bwait\b",
+        r"\bbefore\b",
 
-            return {
-                "cta_present": False,
-                "cta_score": 0,
-                "cta_type": "none"
-            }
+        # Hindi
+        r"कैसे",
+        r"क्यों",
+        r"क्या होगा",
+        r"क्या आप जानते",
+        r"क्या आपको पता",
+        r"राज",
+        r"गलती",
+        r"रुकिए",
+        r"कभी नहीं",
+        r"आपको जरूर",
+        r"आज",
+        r"देखिए",
+        r"सीखिए",
+        r"जानिए",
+        r"महत्वपूर्ण",
+        r"समस्या",
+        r"समाधान",
+        r"पहले",
+        r"ध्यान दें",
 
-        text = self.transcript.lower()
+        # Hinglish
+        r"\bkaise\b",
+        r"\bkyun\b",
+        r"\bkya\b",
+        r"\bsecret\b",
+        r"\bmistake\b",
+        r"\bdekho\b",
+        r"\bsuno\b",
+        r"\bjaaniye\b",
+        r"\bseekhiye\b",
+        r"\bimportant\b",
+    ]
 
-        cta_patterns = {
+    matches = 0
 
-            "follow": [
-                "follow me",
-                "follow us",
-                "follow for more"
-            ],
+    for pattern in hook_patterns:
 
-            "like": [
-                "like this video",
-                "give it a like",
-                "like the video"
-            ],
+        if re.search(
+            pattern,
+            first_part,
+            flags=re.UNICODE
+        ):
+            matches += 1
 
-            "comment": [
-                "comment below",
-                "comment your",
-                "let me know"
-            ],
+    # Question in opening is also a hook signal
+    if "?" in first_part or "?" in text[:200]:
+        matches += 1
 
-            "share": [
-                "share this",
-                "share the video"
-            ],
+    score = min(matches * 20, 100)
 
-            "subscribe": [
-                "subscribe",
-                "subscribe to my channel"
-            ],
+    return {
+        "has_hook": matches > 0,
+        "hook_score": score
+    }
 
-            "save": [
-                "save this",
-                "save this video"
-            ]
-        }
 
-        detected = []
+# ============================================================
+# SENTIMENT
+# ============================================================
 
-        for cta_type, phrases in cta_patterns.items():
+def detect_sentiment(text):
 
-            for phrase in phrases:
+    positive_words = {
+        # English
+        "amazing",
+        "great",
+        "best",
+        "love",
+        "happy",
+        "exciting",
+        "awesome",
+        "beautiful",
+        "success",
+        "successful",
+        "good",
+        "perfect",
+        "wonderful",
+        "excellent",
+        "fun",
+        "win",
+        "winning",
 
-                if phrase in text:
+        # Hindi
+        "अच्छा",
+        "अच्छी",
+        "अच्छे",
+        "बेहतरीन",
+        "शानदार",
+        "कमाल",
+        "अद्भुत",
+        "खुश",
+        "खुशी",
+        "सफलता",
+        "सफल",
+        "प्यार",
+        "सुंदर",
+        "मजेदार",
+        "जीत",
 
-                    detected.append(
-                        cta_type
-                    )
+        # Hinglish
+        "accha",
+        "achha",
+        "best",
+        "shandar",
+        "kamal",
+        "zabardast",
+        "khush",
+        "success",
+        "successful",
+        "maza",
+    }
 
-                    break
+    negative_words = {
+        # English
+        "bad",
+        "worst",
+        "hate",
+        "sad",
+        "problem",
+        "fail",
+        "failure",
+        "wrong",
+        "danger",
+        "dangerous",
+        "poor",
+        "terrible",
+        "horrible",
+        "mistake",
+        "loss",
+        "losing",
 
-        detected = list(
-            set(detected)
+        # Hindi
+        "बुरा",
+        "बुरी",
+        "बुरे",
+        "खराब",
+        "नफरत",
+        "दुख",
+        "दुखी",
+        "समस्या",
+        "असफल",
+        "गलत",
+        "खतरा",
+        "खतरनाक",
+        "भयानक",
+        "गलती",
+        "नुकसान",
+        "हार",
+
+        # Hinglish
+        "bura",
+        "kharab",
+        "galat",
+        "problem",
+        "danger",
+        "dangerous",
+        "failure",
+        "loss",
+        "haar",
+        "nuksan",
+    }
+
+    words = set(split_words(text))
+
+    positive = len(
+        words & positive_words
+    )
+
+    negative = len(
+        words & negative_words
+    )
+
+    total = positive + negative
+
+    if positive > negative:
+        sentiment = "positive"
+
+    elif negative > positive:
+        sentiment = "negative"
+
+    else:
+        sentiment = "neutral"
+
+    if total == 0:
+        sentiment_score = 0.0
+
+    else:
+        sentiment_score = round(
+            ((positive - negative) / total) * 100,
+            2
         )
 
-        score = min(
-            len(detected) * 25,
-            100
+    return {
+        "label": sentiment,
+        "positive_count": positive,
+        "negative_count": negative,
+        "score": sentiment_score,
+    }
+
+
+# ============================================================
+# KEYWORD EXTRACTION
+# ============================================================
+
+def extract_keywords(text, top_n=10):
+
+    words = split_words(text)
+
+    filtered = [
+        word
+        for word in words
+        if (
+            word not in STOPWORDS
+            and len(word) > 2
+            and not word.isdigit()
         )
+    ]
 
-        cta_type = (
-            detected[0]
-            if detected
-            else "none"
-        )
+    counts = Counter(filtered)
 
-        return {
-            "cta_present": bool(detected),
-            "cta_score": score,
-            "cta_type": cta_type,
-            "cta_types": detected
-        }
+    return [
+        word
+        for word, count in counts.most_common(top_n)
+    ]
 
-    # =====================================================
-    # SENTIMENT
-    # =====================================================
 
-    def sentiment_analysis(self):
+# ============================================================
+# FILLER WORD RATIO
+# ============================================================
 
-        if not self.transcript:
+def calculate_filler_ratio(text):
 
-            return {
-                "sentiment": "neutral",
-                "sentiment_score": 0
-            }
+    words = split_words(text)
 
-        try:
+    if not words:
+        return 0.0
 
-            from textblob import TextBlob
+    filler_count = 0
 
-            polarity = TextBlob(
-                self.transcript
-            ).sentiment.polarity
+    text_lower = text.lower()
 
-            if polarity > 0.15:
+    for filler in FILLER_WORDS:
 
-                sentiment = "positive"
+        if " " in filler:
 
-            elif polarity < -0.15:
-
-                sentiment = "negative"
-
-            else:
-
-                sentiment = "neutral"
-
-            return {
-                "sentiment": sentiment,
-                "sentiment_score": round(
-                    polarity,
-                    3
+            filler_count += len(
+                re.findall(
+                    re.escape(filler),
+                    text_lower,
+                    flags=re.UNICODE
                 )
-            }
-
-        except Exception:
-
-            return {
-                "sentiment": "unknown",
-                "sentiment_score": 0
-            }
-
-    # =====================================================
-    # TOPIC / CATEGORY
-    # =====================================================
-
-    def category_analysis(self):
-
-        text = self.transcript.lower()
-
-        categories = {
-
-            "technology": [
-                "python",
-                "programming",
-                "coding",
-                "software",
-                "computer",
-                "ai",
-                "artificial intelligence",
-                "machine learning",
-                "technology",
-                "developer"
-            ],
-
-            "fitness": [
-                "gym",
-                "workout",
-                "fitness",
-                "exercise",
-                "muscle",
-                "weight loss",
-                "protein"
-            ],
-
-            "education": [
-                "study",
-                "exam",
-                "student",
-                "learn",
-                "course",
-                "education",
-                "tutorial",
-                "college"
-            ],
-
-            "finance": [
-                "money",
-                "investment",
-                "stock",
-                "finance",
-                "trading",
-                "loan",
-                "business"
-            ],
-
-            "food": [
-                "recipe",
-                "food",
-                "cook",
-                "cooking",
-                "restaurant",
-                "taste",
-                "kitchen"
-            ],
-
-            "travel": [
-                "travel",
-                "trip",
-                "tour",
-                "hotel",
-                "flight",
-                "vacation",
-                "destination"
-            ],
-
-            "entertainment": [
-                "movie",
-                "music",
-                "song",
-                "comedy",
-                "actor",
-                "celebrity",
-                "dance"
-            ]
-        }
-
-        scores = {}
-
-        for category, keywords in categories.items():
-
-            score = 0
-
-            for keyword in keywords:
-
-                if keyword in text:
-                    score += 1
-
-            scores[category] = score
-
-        if not any(scores.values()):
-
-            return {
-                "category": "general",
-                "category_confidence": 0,
-                "category_scores": scores
-            }
-
-        best_category = max(
-            scores,
-            key=scores.get
-        )
-
-        total = sum(
-            scores.values()
-        )
-
-        confidence = (
-            scores[best_category]
-            / total
-        )
-
-        return {
-            "category": best_category,
-            "category_confidence": round(
-                confidence,
-                3
-            ),
-            "category_scores": scores
-        }
-
-    # =====================================================
-    # SENSIBILITY / QUALITY
-    # =====================================================
-
-    def transcript_quality(self):
-
-        if not self.transcript:
-
-            return {
-                "transcript_quality": 0,
-                "transcript_quality_label":
-                    "no_transcript"
-            }
-
-        words = self.words
-
-        if len(words) < 3:
-
-            return {
-                "transcript_quality": 10,
-                "transcript_quality_label":
-                    "too_short"
-            }
-
-        filler = self.filler_word_analysis()
-
-        filler_ratio = filler[
-            "filler_word_ratio"
-        ]
-
-        vocabulary = self.vocabulary_diversity()
-
-        sentences = self.sentence_count()
-
-        score = 100
-
-        # Penalize excessive fillers
-        score -= min(
-            filler_ratio * 100,
-            25
-        )
-
-        # Very low vocabulary diversity
-        if vocabulary < 0.20:
-
-            score -= 20
-
-        elif vocabulary < 0.30:
-
-            score -= 10
-
-        # No sentence structure
-        if sentences == 0:
-
-            score -= 20
-
-        # Repeated words
-        counts = Counter(words)
-
-        most_common = (
-            counts.most_common(1)[0][1]
-            if counts
-            else 0
-        )
-
-        if most_common > len(words) * 0.30:
-
-            score -= 20
-
-        score = max(
-            0,
-            min(score, 100)
-        )
-
-        if score >= 75:
-
-            label = "good"
-
-        elif score >= 50:
-
-            label = "moderate"
+            )
 
         else:
 
-            label = "poor"
+            filler_count += sum(
+                1
+                for word in words
+                if word == filler
+            )
 
-        return {
-            "transcript_quality":
-                round(score, 2),
+    ratio = (
+        filler_count / len(words)
+    ) * 100
 
-            "transcript_quality_label":
-                label
-        }
+    return round(ratio, 2)
 
-    # =====================================================
-    # MAIN ANALYSIS
-    # =====================================================
+
+# ============================================================
+# SENTENCE COUNT
+# ============================================================
+
+def count_sentences(text):
+
+    if not text:
+        return 0
+
+    # Handles ., !, ?, Hindi danda । and double danda ॥
+    sentences = re.findall(
+        r"[^.!?।！？]+[.!?।！？]+",
+        text
+    )
+
+    if not sentences and text.strip():
+        return 1
+
+    return len(sentences)
+
+
+# ============================================================
+# VOCABULARY DIVERSITY
+# ============================================================
+
+def calculate_vocabulary_diversity(words):
+
+    if not words:
+        return 0.0
+
+    unique_words = len(set(words))
+
+    diversity = unique_words / len(words)
+
+    return round(diversity, 2)
+
+
+# ============================================================
+# QUESTION DETECTION
+# ============================================================
+
+def count_questions(text):
+
+    if not text:
+        return 0
+
+    return len(
+        re.findall(
+            r"[?？]",
+            text
+        )
+    )
+
+
+# ============================================================
+# TRANSCRIPT QUALITY
+# ============================================================
+
+def calculate_transcript_quality(text):
+
+    if not text:
+        return 0.0
+
+    words = split_words(text)
+
+    if not words:
+        return 0.0
+
+    score = 100.0
+
+    # Very short transcript
+    if len(words) < 5:
+        score -= 30
+
+    elif len(words) < 10:
+        score -= 15
+
+    # Repeated same word excessively
+    counts = Counter(words)
+
+    most_common_count = (
+        counts.most_common(1)[0][1]
+        if counts
+        else 0
+    )
+
+    if len(words) > 0:
+
+        repetition_ratio = (
+            most_common_count / len(words)
+        )
+
+        if repetition_ratio > 0.70:
+            score -= 30
+
+        elif repetition_ratio > 0.50:
+            score -= 15
+
+    return round(
+        max(0.0, min(100.0, score)),
+        2
+    )
+
+
+# ============================================================
+# MAIN CONTENT ANALYSIS FUNCTION
+# ============================================================
+
+def analyze_content(text, duration=0):
+
+    text = clean_text(text)
+
+    words = split_words(text)
+
+    hook = detect_hook(text)
+
+    cta = detect_cta(text)
+
+    cta_score = calculate_cta_score(text)
+
+    sentiment = detect_sentiment(text)
+
+    keywords = extract_keywords(text)
+
+    speech_density = calculate_speech_density(
+        text,
+        duration
+    )
+
+    questions = count_questions(text)
+
+    filler_ratio = calculate_filler_ratio(text)
+
+    sentence_count = count_sentences(text)
+
+    vocabulary_diversity = (
+        calculate_vocabulary_diversity(words)
+    )
+
+    transcript_quality = (
+        calculate_transcript_quality(text)
+    )
+
+    return {
+
+        "transcript": text,
+
+        "word_count": len(words),
+
+        "unique_words": len(set(words)),
+
+        "character_count": len(text),
+
+        "sentence_count": sentence_count,
+
+        "vocabulary_diversity": vocabulary_diversity,
+
+        "filler_word_ratio": filler_ratio,
+
+        "hook_score": hook["hook_score"],
+
+        "has_hook": hook["has_hook"],
+
+        "cta_detected": len(cta) > 0,
+
+        "cta_score": cta_score,
+
+        "cta_types": cta,
+
+        "question_count": questions,
+
+        "sentiment": sentiment["label"],
+
+        "sentiment_score": sentiment["score"],
+
+        "positive_words": sentiment["positive_count"],
+
+        "negative_words": sentiment["negative_count"],
+
+        "keywords": keywords,
+
+        "speech_density": speech_density,
+
+        "transcript_quality": transcript_quality,
+
+    }
+
+
+# ============================================================
+# CONTENT ANALYZER CLASS
+# Compatible with app.py
+# ============================================================
+
+class ContentAnalyzer:
+
+    def __init__(self, transcript="", duration=0):
+
+        self.transcript = transcript or ""
+
+        self.duration = duration or 0
 
     def analyze(self):
 
-        filler = self.filler_word_analysis()
-
-        hook = self.hook_analysis()
-
-        cta = self.cta_analysis()
-
-        sentiment = self.sentiment_analysis()
-
-        category = self.category_analysis()
-
-        quality = self.transcript_quality()
-
-        return {
-
-            "transcript": self.transcript,
-
-            "word_count":
-                self.word_count(),
-
-            "unique_word_count":
-                self.unique_word_count(),
-
-            "sentence_count":
-                self.sentence_count(),
-
-            "vocabulary_diversity":
-                self.vocabulary_diversity(),
-
-            **filler,
-
-            **hook,
-
-            **cta,
-
-            **sentiment,
-
-            **category,
-
-            **quality
-        }
+        return analyze_content(
+            self.transcript,
+            self.duration
+        )

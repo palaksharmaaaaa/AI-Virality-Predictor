@@ -1,356 +1,318 @@
-# import os
-# import subprocess
-# import tempfile
-
-
-# class TranscriptExtractor:
-
-#     def __init__(self, video_path, model_size="base"):
-#         self.video_path = video_path
-#         self.model_size = model_size
-#         self.model = None
-
-#     # =====================================================
-#     # LOAD WHISPER
-#     # =====================================================
-
-#     def _load_model(self):
-
-#         if self.model is not None:
-#             return self.model
-
-#         try:
-#             import whisper
-
-#             self.model = whisper.load_model(
-#                 self.model_size
-#             )
-
-#             return self.model
-
-#         except ImportError:
-
-#             raise ImportError(
-#                 "Whisper is not installed. "
-#                 "Run: pip install openai-whisper"
-#             )
-
-#     # =====================================================
-#     # EXTRACT AUDIO FROM VIDEO
-#     # =====================================================
-
-#     def _extract_audio(self):
-
-#         temp_dir = tempfile.mkdtemp()
-
-#         audio_path = os.path.join(
-#             temp_dir,
-#             "audio.wav"
-#         )
-
-#         command = [
-#             "ffmpeg",
-#             "-y",
-#             "-i",
-#             self.video_path,
-#             "-vn",
-#             "-acodec",
-#             "pcm_s16le",
-#             "-ar",
-#             "16000",
-#             "-ac",
-#             "1",
-#             audio_path
-#         ]
-
-#         result = subprocess.run(
-#             command,
-#             stdout=subprocess.PIPE,
-#             stderr=subprocess.PIPE,
-#             text=True
-#         )
-
-#         if result.returncode != 0:
-
-#             raise RuntimeError(
-#                 "FFmpeg could not extract audio.\n"
-#                 + result.stderr[-1000:]
-#             )
-
-#         return audio_path
-
-#     # =====================================================
-#     # TRANSCRIBE
-#     # =====================================================
-
-#     def transcribe(self):
-
-#         try:
-
-#             model = self._load_model()
-
-#             audio_path = self._extract_audio()
-
-#             result = model.transcribe(
-#                 audio_path,
-#                 fp16=False,
-#                 verbose=False
-#             )
-
-#             transcript = (
-#                 result.get("text", "")
-#                 .strip()
-#             )
-
-#             language = result.get(
-#                 "language",
-#                 "unknown"
-#             )
-
-#             segments = result.get(
-#                 "segments",
-#                 []
-#             )
-
-#             return {
-#                 "transcript": transcript,
-#                 "language": language,
-#                 "segments": segments,
-#                 "success": True,
-#                 "error": None
-#             }
-
-#         except Exception as e:
-
-#             return {
-#                 "transcript": "",
-#                 "language": "unknown",
-#                 "segments": [],
-#                 "success": False,
-#                 "error": str(e)
-#             }
-
-
 import os
-import subprocess
 import tempfile
-import wave
-import numpy as np
-import imageio_ffmpeg
-import whisper
+import subprocess
+import torch
+
+from transformers import (
+    AutoProcessor,
+    AutoModelForMultimodalLM
+)
 
 
-# Bundled FFmpeg path
-FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
+# ============================================================
+# QWEN3-ASR CONFIGURATION
+# ============================================================
 
-# Also add FFmpeg folder to PATH
-FFMPEG_DIR = os.path.dirname(FFMPEG_PATH)
-os.environ["PATH"] = FFMPEG_DIR + os.pathsep + os.environ.get("PATH", "")
+MODEL_ID = "Qwen/Qwen3-ASR-0.6B-hf"
+
+_processor = None
+_model = None
 
 
-class TranscriptAnalyzer:
+# ============================================================
+# LOAD MODEL
+# ============================================================
 
-    def __init__(self, model_name="small"):
-        self.model_name = model_name
-        self.model = None
+def load_qwen_model():
 
-    def load_model(self):
-        if self.model is None:
-            print(f"Loading Whisper model: {self.model_name}")
-            self.model = whisper.load_model(self.model_name)
+    global _processor
+    global _model
 
-    def has_audio_stream(self, video_path):
+    if _processor is not None and _model is not None:
+        return _processor, _model
 
-        try:
-            result = subprocess.run(
-                [
-                    FFMPEG_PATH,
-                    "-i",
-                    video_path
-                ],
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                errors="ignore"
-            )
+    print("=" * 60)
+    print("Loading Qwen3-ASR")
+    print("Model:", MODEL_ID)
+    print("=" * 60)
 
-            output = result.stderr.lower()
+    if torch.cuda.is_available():
+        device = "cuda"
+        dtype = torch.float16
+        print("Device: CUDA")
+    else:
+        device = "cpu"
+        dtype = torch.float32
+        print("Device: CPU")
 
-            return "audio:" in output
+    print("Loading processor...")
 
-        except Exception as e:
-            print("Audio stream detection error:", e)
-            return False
+    _processor = AutoProcessor.from_pretrained(
+        MODEL_ID
+    )
 
-    def extract_audio(self, video_path):
+    print("Loading model...")
 
-        wav_path = os.path.join(
-            tempfile.gettempdir(),
-            "virality_whisper_audio.wav"
-        )
+    _model = AutoModelForMultimodalLM.from_pretrained(
+        MODEL_ID,
+        torch_dtype=dtype
+    )
 
-        command = [
-            FFMPEG_PATH,
-            "-y",
-            "-i",
-            video_path,
-            "-vn",
-            "-ac",
-            "1",
-            "-ar",
-            "16000",
-            "-acodec",
-            "pcm_s16le",
-            wav_path
-        ]
+    _model.to(device)
+
+    _model.eval()
+
+    print("Qwen3-ASR loaded successfully.")
+
+    return _processor, _model
+
+
+# ============================================================
+# EXTRACT AUDIO FROM VIDEO
+# ============================================================
+
+def extract_audio(video_path):
+
+    temp_wav = tempfile.NamedTemporaryFile(
+        suffix=".wav",
+        delete=False
+    )
+
+    temp_wav.close()
+
+    output_path = temp_wav.name
+
+    command = [
+        "ffmpeg",
+        "-y",
+        "-i",
+        video_path,
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-sample_fmt",
+        "s16",
+        output_path
+    ]
+
+    try:
 
         result = subprocess.run(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
-            errors="ignore"
+            text=True
         )
 
         if result.returncode != 0:
+
             raise RuntimeError(
                 "FFmpeg audio extraction failed:\n"
-                + result.stderr[-3000:]
+                + result.stderr
             )
 
-        if not os.path.exists(wav_path):
-            raise RuntimeError("WAV file was not created.")
+        return output_path
 
-        return wav_path
+    except FileNotFoundError:
 
-    def load_wav_as_numpy(self, wav_path):
+        raise RuntimeError(
+            "FFmpeg was not found. "
+            "Please install FFmpeg and add it to PATH."
+        )
 
-        with wave.open(wav_path, "rb") as wf:
 
-            sample_rate = wf.getframerate()
-            channels = wf.getnchannels()
-            sample_width = wf.getsampwidth()
-            frames = wf.getnframes()
+# ============================================================
+# TRANSCRIBE AUDIO
+# ============================================================
 
-            audio_bytes = wf.readframes(frames)
+def transcribe_audio(audio_path):
 
-        if sample_width != 2:
-            raise RuntimeError(
-                f"Unexpected WAV sample width: {sample_width}"
-            )
+    processor, model = load_qwen_model()
 
-        audio = np.frombuffer(
-            audio_bytes,
-            dtype=np.int16
-        ).astype(np.float32)
+    device = model.device
 
-        # Normalize int16 → float32
-        audio = audio / 32768.0
+    print("=" * 60)
+    print("Transcribing audio with Qwen3-ASR")
+    print("Audio:", audio_path)
+    print("=" * 60)
 
-        # Mono conversion if necessary
-        if channels > 1:
-            audio = audio.reshape(-1, channels)
-            audio = audio.mean(axis=1)
+    # Qwen processor creates the transcription request
+    inputs = processor.apply_transcription_request(
+        audio=audio_path
+    )
 
-        return audio, sample_rate
+    inputs = inputs.to(
+        device,
+        model.dtype
+    )
 
-    def transcribe(self, video_path):
+    with torch.no_grad():
 
-        result = {
+        output_ids = model.generate(
+            **inputs,
+            max_new_tokens=512
+        )
+
+    generated_ids = output_ids[
+        :,
+        inputs["input_ids"].shape[1]:
+    ]
+
+    raw_text = processor.decode(
+        generated_ids
+    )[0]
+
+    # Extract clean transcript
+    try:
+
+        transcript = processor.extract_transcription(
+            raw_text
+        )
+
+    except Exception:
+
+        transcript = raw_text
+
+    transcript = transcript or ""
+
+    # Remove Qwen special tokens
+    transcript = transcript.replace("<|im_end|>", "")
+    transcript = transcript.replace("<|endoftext|>", "")
+
+    transcript = transcript.strip()
+
+    return transcript
+
+
+# ============================================================
+# MAIN VIDEO TRANSCRIPTION FUNCTION
+# ============================================================
+
+def transcribe_video(
+    video_path,
+    model_name=MODEL_ID
+):
+
+    if not video_path:
+
+        return {
             "success": False,
             "transcript": "",
-            "language": "",
+            "text": "",
+            "language": "unknown",
             "segments": [],
-            "error": ""
+            "error": "No video path provided."
         }
 
-        try:
+    if not os.path.exists(video_path):
 
-            if not os.path.exists(video_path):
-                result["error"] = "Video file does not exist."
-                return result
+        return {
+            "success": False,
+            "transcript": "",
+            "text": "",
+            "language": "unknown",
+            "segments": [],
+            "error": f"Video not found: {video_path}"
+        }
 
-            print("Video:", video_path)
-            print("FFmpeg:", FFMPEG_PATH)
+    audio_path = None
 
-            # Check audio
-            if not self.has_audio_stream(video_path):
+    try:
 
-                result["error"] = "No audio stream found in video."
-                return result
+        print("=" * 60)
+        print("Starting Qwen3-ASR transcription")
+        print("Video:", video_path)
+        print("Model:", MODEL_ID)
+        print("=" * 60)
 
-            print("Audio stream detected.")
+        # ----------------------------------------------------
+        # STEP 1: Extract audio
+        # ----------------------------------------------------
 
-            # Extract audio
-            wav_path = self.extract_audio(video_path)
+        print("Extracting audio...")
 
-            print("Audio extracted:", wav_path)
+        audio_path = extract_audio(
+            video_path
+        )
 
-            # Load WAV directly into numpy
-            # This avoids Whisper calling external ffmpeg again.
-            audio, sample_rate = self.load_wav_as_numpy(wav_path)
+        print(
+            "Audio extracted:",
+            audio_path
+        )
 
-            print(
-                f"Audio loaded: {len(audio)} samples @ {sample_rate} Hz"
-            )
+        # ----------------------------------------------------
+        # STEP 2: Transcribe
+        # ----------------------------------------------------
 
-            # Load Whisper
-            self.load_model()
+        transcript = transcribe_audio(
+            audio_path
+        )
 
-            print("Transcribing...")
+        print("=" * 60)
+        print("Transcription completed")
+        print("Characters:", len(transcript))
+        print("Words:", len(transcript.split()))
+        print("Transcript:", transcript)
+        print("=" * 60)
 
-            whisper_result = self.model.transcribe(
-                audio,
-                language="hi",
-                task="transcribe",
-                fp16=False
-            )
+        return {
 
-            transcript = whisper_result.get(
-                "text",
-                ""
-            ).strip()
+            "success": bool(transcript),
 
-            segments = whisper_result.get(
-                "segments",
-                []
-            )
+            "transcript": transcript,
 
-            language = whisper_result.get(
-                "language",
-                ""
-            )
+            # Keep "text" for compatibility
+            # with older code
+            "text": transcript,
 
-            result["success"] = True
-            result["transcript"] = transcript
-            result["language"] = language
-            result["segments"] = segments
+            "language": "auto",
 
-            print("Transcription completed.")
-            print("Language:", language)
-            print("Transcript:", transcript)
+            "segments": [],
 
-            # Cleanup
+            "error": None
+        }
+
+    except Exception as error:
+
+        print("=" * 60)
+        print("Qwen3-ASR transcription failed")
+        print("Error:", error)
+        print("=" * 60)
+
+        return {
+
+            "success": False,
+
+            "transcript": "",
+
+            "text": "",
+
+            "language": "unknown",
+
+            "segments": [],
+
+            "error": str(error)
+        }
+
+    finally:
+
+        # ----------------------------------------------------
+        # Remove temporary WAV
+        # ----------------------------------------------------
+
+        if audio_path:
+
             try:
-                os.remove(wav_path)
+
+                if os.path.exists(
+                    audio_path
+                ):
+                    os.remove(
+                        audio_path
+                    )
+
             except Exception:
+
                 pass
-
-            return result
-
-        except Exception as e:
-
-            result["error"] = str(e)
-
-            print("TRANSCRIPTION ERROR:")
-            print(e)
-
-            return result
-
-
-# Compatibility function
-def transcribe_video(video_path, model_name="small"):
-
-    analyzer = TranscriptAnalyzer(model_name)
-
-    return analyzer.transcribe(video_path)

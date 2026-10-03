@@ -1,98 +1,238 @@
-# AI Virality Predictor
+# 🎯 AI Virality Predictor
 
-An AI-powered video analytics and prediction system built with **Python, Flask, OpenCV, scikit-learn, and SQLite**.
+An AI-powered video analytics and virality prediction system that analyzes uploaded videos using **Computer Vision, Machine Learning, Audio Analysis, Speech Transcription, Content Analysis, and Creator/Platform insights**.
 
-The system analyzes an uploaded video, extracts visual and temporal features, predicts its potential performance using a machine learning model, generates recommendations, stores analysis history, and can generate a PDF report.
-
-> **Note:** The current project is a working prototype. Prediction quality depends on the size and quality of the available training dataset.
+The system extracts meaningful video features such as motion, scene changes, hook intensity, human presence, visible faces, brightness, contrast, pacing, audio/speech characteristics, and transcript-based content signals to estimate the video's potential performance.
 
 ---
 
-## Features
+## 🚀 Features
 
-### 1. Video Upload
+### 🎥 Video Analysis
 
-Upload a video through the Flask web interface.
-
-The system accepts a video and performs automated analysis.
-
-### 2. Video Feature Extraction
-
-The application extracts features including:
+The system analyzes uploaded videos and extracts:
 
 * Video duration
 * FPS
 * Resolution
-* Motion score
-* Scene changes
-* Hook intensity
-* Face count
-* Face presence ratio
+* Aspect ratio
+* Video format
+* File size
 * Brightness
 * Contrast
+* Motion score
+* Scene changes
+* Scene change rate
 * Pacing score
+* Hook intensity
+* Person count
+* Person presence ratio
+* Visible face count
+* Face presence ratio
+* Number of sampled frames
 
-### 3. Machine Learning Prediction
+### 🤖 AI-Based Person Detection
 
-The extracted features are passed to a trained machine learning model.
+The project uses:
 
-The system produces:
+**SSDLite320 MobileNetV3-Large**
 
-* Virality score
-* Estimated views
-* Prediction result
+with pretrained COCO weights from the PyTorch/Torchvision ecosystem.
 
-The current trained model is stored using Joblib.
+The detector is used to identify people in video frames.
 
-### 4. Recommendations
-
-The recommendation module analyzes the extracted features and provides suggestions such as:
-
-* Improving the first few seconds of the video
-* Increasing or reducing motion
-* Improving pacing
-* Improving visual characteristics
-* Optimizing audience engagement characteristics
-
-### 5. Analysis History
-
-Previous video analyses are stored in SQLite.
-
-The history page allows previously generated analysis results to be viewed.
-
-### 6. PDF Report Generation
-
-The application can generate a PDF report containing the video analysis and prediction information.
-
-### 7. Video Thumbnail
-
-A representative thumbnail is generated from the uploaded video and displayed on the result page.
-
----
-
-# Technology Stack
-
-| Technology   | Purpose                              |
-| ------------ | ------------------------------------ |
-| Python       | Core programming language            |
-| Flask        | Web application framework            |
-| OpenCV       | Video processing and computer vision |
-| NumPy        | Numerical processing                 |
-| Pandas       | Dataset processing                   |
-| scikit-learn | Machine learning                     |
-| Joblib       | Model persistence                    |
-| SQLite       | Analysis history database            |
-| ReportLab    | PDF report generation                |
-| HTML         | Frontend structure                   |
-| CSS          | Frontend styling                     |
-| JavaScript   | Frontend interactions                |
-
----
-
-# Project Structure
+Pipeline:
 
 ```text
-ai_virality_predictor/
+Video Frame
+     ↓
+SSDLite320 MobileNetV3-Large
+     ↓
+Person Detection
+     ↓
+Person Bounding Boxes
+     ↓
+Head/Upper Region Analysis
+     ↓
+Face Verification
+     ↓
+Person Count + Visible Face Count
+```
+
+The system keeps person detection separate from face detection because a person may be visible even when their face is not visible, for example in:
+
+* Top-down camera views
+* Back-facing people
+* Side-facing people
+* Occluded people
+* Crowded scenes
+
+---
+
+## 🎙️ Audio & Speech Analysis
+
+The system extracts audio from the uploaded video using **FFmpeg**.
+
+Audio analysis includes:
+
+* Audio availability
+* Speech ratio
+* Silence ratio
+* Music/activity ratio
+
+For speech transcription, the project uses:
+
+**Qwen3-ASR**
+
+Model:
+
+```text
+Qwen/Qwen3-ASR-0.6B-hf
+```
+
+The transcription pipeline supports multilingual speech and can produce transcripts containing English, Hindi, Hinglish, and other supported languages.
+
+---
+
+## 📝 Transcript & Content Analysis
+
+The transcript is analyzed to extract content-related signals such as:
+
+* Word count
+* Unique words
+* Character count
+* Sentence count
+* Vocabulary diversity
+* Filler word ratio
+* Hook score
+* CTA detection
+* CTA score
+* Question count
+* Sentiment
+* Sentiment score
+* Keywords
+* Speech density
+* Transcript quality
+
+The content analyzer is designed to handle Unicode text so that Hindi and other non-ASCII scripts are not incorrectly treated as empty text.
+
+Example:
+
+```text
+आज हम लोग एक important topic के बारे में बात करेंगे।
+अगर आपको यह वीडियो अच्छा लगे तो like और share जरूर करें।
+```
+
+can be analyzed instead of returning zero word counts.
+
+---
+
+## 🧠 Machine Learning
+
+The project uses a machine-learning regression model to estimate video performance.
+
+Current model:
+
+```text
+RandomForestRegressor
+```
+
+The model uses extracted video and related analytical features to generate:
+
+* Virality Score
+* Estimated Views / Reach
+
+Example:
+
+```text
+Virality Score: 20 / 100
+Estimated Views: 278,349
+```
+
+> The prediction is an ML estimate based on the available training data. It should not be interpreted as a guaranteed number of views.
+
+---
+
+## 📊 Prediction Pipeline
+
+```text
+                Uploaded Video
+                      │
+                      ▼
+              Video Processing
+                      │
+        ┌─────────────┼─────────────┐
+        ▼             ▼             ▼
+   Visual Analysis  Audio        Metadata
+        │          Analysis          │
+        ▼             ▼             ▼
+ Motion / Scenes   Speech /       Duration /
+ Faces / People    Silence        FPS / Size
+        │             │
+        └─────────────┼─────────────┘
+                      ▼
+              Feature Engineering
+                      │
+                      ▼
+             Machine Learning Model
+                      │
+                      ▼
+              Virality Prediction
+                      │
+        ┌─────────────┴─────────────┐
+        ▼                           ▼
+  Virality Score             Estimated Views
+```
+
+---
+
+## 🌐 Web Application
+
+The application is built using:
+
+* Python
+* Flask
+* HTML
+* CSS
+* JavaScript
+
+Flask provides the backend and routing, while HTML/CSS/JavaScript provide the user interface.
+
+---
+
+## 🗄️ Database
+
+The project uses:
+
+**SQLite**
+
+The database stores analysis information and historical predictions.
+
+The application provides an analysis history so previously processed videos can be reviewed.
+
+---
+
+## 📄 Generated Reports
+
+The application can generate detailed PDF reports containing analysis results.
+
+Reports can include:
+
+* Video information
+* Visual features
+* Audio information
+* Transcript/content analysis
+* Virality prediction
+* Recommendations
+
+PDF reports are generated using **ReportLab**.
+
+---
+
+## 📁 Project Structure
+
+```text
+AI-Virality-Predictor/
 │
 ├── app.py
 ├── requirements.txt
@@ -100,96 +240,105 @@ ai_virality_predictor/
 ├── .gitignore
 │
 ├── config/
-│   ├── config.py
-│   └── __init__.py
-│
-├── data/
-│   ├── dataset_manifest.csv
-│   ├── training_data.csv
-│   ├── README.md
-│   └── videos/
+│   ├── __init__.py
+│   └── config.py
 │
 ├── database/
+│   ├── __init__.py
 │   ├── database.py
-│   ├── schema.sql
-│   └── __init__.py
+│   └── schema.sql
+│
+├── video/
+│   ├── __init__.py
+│   ├── extractor.py
+│   ├── transcript.py
+│   └── thumbnail.py
+│
+├── content/
+│   ├── __init__.py
+│   └── content_analyzer.py
+│
+├── creator/
+│   ├── __init__.py
+│   └── creator_analyzer.py
+│
+├── platform_analysis/
+│   ├── __init__.py
+│   └── platform_analyzer.py
+│
+├── hashtag/
+│   ├── __init__.py
+│   └── hashtag_analyzer.py
 │
 ├── ml/
-│   ├── features.py
-│   ├── predict.py
-│   ├── preprocessing.py
+│   ├── __init__.py
 │   ├── train.py
-│   └── __init__.py
+│   └── predict.py
 │
 ├── models/
 │   ├── virality_model.joblib
 │   └── virality_scaler.joblib
-│
-├── recommendations/
-│   ├── recommender.py
-│   └── __init__.py
-│
-├── reports/
-│   ├── report_generator.py
-│   └── generated/
-│
-├── scripts/
-│   └── build_training_dataset.py
-│
-├── static/
-│   ├── css/
-│   ├── js/
-│   └── thumbnails/
 │
 ├── templates/
 │   ├── index.html
 │   ├── result.html
 │   └── history.html
 │
-├── uploads/
+├── static/
+│   └── css/
+│       └── style.css
 │
-└── utils/
-    ├── helpers.py
-    └── __init__.py
+├── data/
+│   └── ...
+│
+├── reports/
+│   └── ...
+│
+└── uploads/
+    └── ...
 ```
 
 ---
 
-# Requirements
+## 🛠️ Technologies Used
 
-Recommended Python version:
+| Technology          | Purpose                              |
+| ------------------- | ------------------------------------ |
+| Python              | Core programming language            |
+| Flask               | Web application backend              |
+| OpenCV              | Video processing and computer vision |
+| NumPy               | Numerical processing                 |
+| PyTorch             | Deep learning framework              |
+| Torchvision         | SSDLite object detection             |
+| Pillow              | Image processing                     |
+| Scikit-learn        | Machine learning                     |
+| Qwen3-ASR           | Speech-to-text transcription         |
+| FFmpeg              | Audio/video processing               |
+| SQLite              | Database                             |
+| ReportLab           | PDF report generation                |
+| HTML/CSS/JavaScript | Frontend                             |
 
-```text
-Python 3.10+
+---
+
+## 💻 Installation
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/palaksharmaaaaa/AI-Virality-Predictor.git
 ```
 
-The project dependencies are listed in:
+Move into the project directory:
 
-```text
-requirements.txt
+```bash
+cd AI-Virality-Predictor
 ```
 
 ---
 
-# Installation
+### 2. Create a virtual environment
 
-## 1. Clone the repository
-
-```powershell
-git clone YOUR_GITHUB_REPOSITORY_URL
-```
-
-Move into the project:
-
-```powershell
-cd ai_virality_predictor
-```
-
----
-
-## 2. Create a virtual environment
-
-Windows PowerShell:
+Windows:
 
 ```powershell
 python -m venv venv
@@ -201,589 +350,241 @@ Activate it:
 venv\Scripts\activate
 ```
 
-After activation, the terminal should show something similar to:
-
-```text
-(venv)
-```
-
 ---
 
-## 3. Upgrade pip
-
-```powershell
-python -m pip install --upgrade pip
-```
-
----
-
-## 4. Install dependencies
+### 3. Install dependencies
 
 ```powershell
 pip install -r requirements.txt
 ```
 
-If a dependency needs to be installed separately:
+If PyTorch and Torchvision are not included in `requirements.txt`, install them separately:
 
 ```powershell
-python -m pip install flask
+pip install torch torchvision pillow
 ```
 
-For PDF report generation:
+Install FFmpeg separately and make sure it is available in the system PATH.
+
+Verify:
 
 ```powershell
-python -m pip install reportlab
+ffmpeg -version
 ```
 
 ---
 
-# Running the Application
+## ▶️ Run the Application
 
-Make sure the virtual environment is activated.
-
-From the project root:
+After activating the virtual environment:
 
 ```powershell
 python app.py
 ```
 
-The Flask server should start on:
+The Flask application will start locally.
+
+Open:
 
 ```text
 http://127.0.0.1:5000
 ```
 
-Open the address in a browser.
+in your browser.
 
 ---
 
-# Video Analysis Workflow
+## 📤 Using the Application
 
-The application follows this workflow:
+### Step 1
+
+Open the application in your browser.
+
+### Step 2
+
+Upload a video.
+
+### Step 3
+
+The system extracts video features.
+
+### Step 4
+
+Audio is extracted and transcribed when speech is available.
+
+### Step 5
+
+The transcript is analyzed for content characteristics.
+
+### Step 6
+
+The machine-learning model generates the virality prediction.
+
+### Step 7
+
+The result page displays:
 
 ```text
-Upload Video
+Video Analysis
       ↓
-Video Validation
+Audio Analysis
       ↓
-Feature Extraction
+Content & Transcript
       ↓
-Machine Learning Prediction
+Creator Analysis
       ↓
-Virality Score
+Platform Analysis
       ↓
-Estimated Views
+Hashtag Analysis
+      ↓
+Virality Prediction
       ↓
 Recommendations
-      ↓
-Save Analysis History
-      ↓
-Generate PDF Report
 ```
 
 ---
 
-# Extracted Video Features
+## 📈 Example Output
 
-The current system extracts the following features.
+Example video analysis:
 
-## Duration
+```text
+Duration              : 37.40 sec
+FPS                   : 29.97
+Resolution            : 1280x720
+Brightness            : 109.82
+Contrast              : 62.50
+Motion Score          : 5.10
+Scene Changes         : 0
+Person Count          : 3
+Face Count            : 0
+Hook Intensity        : 30.20
+Pacing Score          : 0.00
+```
 
-Length of the uploaded video in seconds.
+Example prediction:
 
-## FPS
+```text
+Virality Score        : 20 / 100
+Estimated Views       : 278,349
+Model                 : RandomForestRegressor
+```
 
-Frames per second of the video.
-
-## Resolution
-
-Video width and height.
-
-## Motion Score
-
-Measures the amount of visual movement between frames.
-
-Higher movement can indicate more dynamic visual content.
-
-## Scene Changes
-
-Estimates the number of major visual scene transitions.
-
-## Hook Intensity
-
-A feature intended to represent the visual intensity of the opening portion of the video.
-
-The first few seconds are important for viewer retention.
-
-## Face Count
-
-Detects faces in sampled video frames.
-
-> Face detection is currently based on computer-vision detection and may occasionally produce false positives.
-
-## Face Presence Ratio
-
-Percentage of sampled frames containing detected faces.
-
-## Brightness
-
-Measures the average brightness of sampled frames.
-
-## Contrast
-
-Measures the visual contrast of the video.
-
-## Pacing Score
-
-Represents the temporal/visual pacing characteristics of the video.
+The exact output depends on the uploaded video and the trained model.
 
 ---
 
-# Machine Learning
+## 🧪 Model Training
 
-The project uses a machine learning model to estimate video performance.
-
-The model uses extracted video features as input.
-
-The prediction pipeline is approximately:
+The machine-learning training pipeline is located in:
 
 ```text
-Video
-  ↓
-Feature Extraction
-  ↓
-Feature Vector
-  ↓
-Preprocessing / Scaling
-  ↓
-ML Model
-  ↓
-Estimated Views
-  ↓
-Virality Score
+ml/train.py
 ```
 
-The trained model files are:
-
-```text
-models/virality_model.joblib
-models/virality_scaler.joblib
-```
-
----
-
-# Training Dataset
-
-Training data is maintained under:
-
-```text
-data/
-```
-
-Important files include:
-
-```text
-data/dataset_manifest.csv
-data/training_data.csv
-```
-
-Training videos are stored under:
-
-```text
-data/videos/
-```
-
-The dataset manifest contains the video information and target performance values used for model development.
-
----
-
-# Building the Training Dataset
-
-The project contains:
-
-```text
-scripts/build_training_dataset.py
-```
-
-Run:
-
-```powershell
-python scripts/build_training_dataset.py
-```
-
-This processes the available training videos and prepares feature data.
-
-The generated feature file is:
-
-```text
-video_features.csv
-```
-
----
-
-# Training the Model
-
-After preparing the training data, run:
-
-```powershell
-python -m ml.train
-```
-
-Depending on the current training implementation, the trained model files will be saved under:
-
-```text
-models/
-```
-
-Expected model files include:
-
-```text
-virality_model.joblib
-virality_scaler.joblib
-```
-
----
-
-# Running Prediction
-
-Prediction functionality is implemented in:
+Prediction logic is located in:
 
 ```text
 ml/predict.py
 ```
 
-The application uses the trained model when available.
-
-The prediction output includes:
-
-```text
-Virality Score
-Estimated Views
-```
-
----
-
-# Important Dataset Limitation
-
-The current prototype has a relatively small training dataset.
-
-Because machine learning models require sufficient representative training data, predictions from a small dataset should be treated as **experimental estimates rather than guaranteed real-world view counts**.
-
-For better performance, the project should eventually be trained using a much larger dataset containing:
-
-* More videos
-* More creators/channels
-* Multiple content categories
-* Actual views
-* Likes
-* Comments
-* Shares
-* Publication information
-* Video-level features
-
----
-
-# SQLite Database
-
-Analysis history is stored using SQLite.
-
-Database-related files are located under:
-
-```text
-database/
-```
-
-The database schema is defined in:
-
-```text
-database/schema.sql
-```
-
-The local database file is:
-
-```text
-database/virality.db
-```
-
-The database stores analysis history generated by the application.
-
----
-
-# PDF Reports
-
-PDF report generation is implemented in:
-
-```text
-reports/report_generator.py
-```
-
-Generated reports are stored locally under:
-
-```text
-reports/generated/
-```
-
-Reports are intentionally excluded from GitHub because they are generated output files.
-
----
-
-# Thumbnails
-
-Generated thumbnails are stored under:
-
-```text
-static/thumbnails/
-```
-
-These are generated during video analysis and are excluded from Git tracking except for the `.gitkeep` file.
-
----
-
-# Uploaded Videos
-
-Uploaded videos are temporarily stored under:
-
-```text
-uploads/
-```
-
-Uploaded videos should not be committed to GitHub because video files can be very large and may contain user-provided content.
-
----
-
-# GitHub Setup
-
-## Initialize Git
-
-From the project root:
-
-```powershell
-git init
-```
-
-Check the repository:
-
-```powershell
-git status
-```
-
----
-
-## Add files
-
-After checking `.gitignore`:
-
-```powershell
-git add .
-```
-
-Check what will be committed:
-
-```powershell
-git status
-```
-
-Make the first commit:
-
-```powershell
-git commit -m "Initial commit - AI Virality Predictor"
-```
-
----
-
-## Set main branch
-
-```powershell
-git branch -M main
-```
-
----
-
-## Connect GitHub repository
-
-Replace the URL with your actual GitHub repository URL:
-
-```powershell
-git remote add origin YOUR_GITHUB_REPOSITORY_URL
-```
-
-Check:
-
-```powershell
-git remote -v
-```
-
----
-
-## Push to GitHub
-
-```powershell
-git push -u origin main
-```
-
----
-
-# Future Updates
-
-After making changes:
-
-```powershell
-git status
-git add .
-git commit -m "Update AI Virality Predictor"
-git push
-```
-
----
-
-# Important Files Not Committed to GitHub
-
-The following generated or local files should normally remain outside GitHub:
-
-```text
-venv/
-__pycache__/
-uploads/*.mp4
-static/thumbnails/*.jpg
-reports/generated/*.pdf
-database/virality.db
-video_features.csv
-*.joblib
-*.pkl
-```
-
-The `.gitignore` file is used to prevent these files from being accidentally committed.
-
----
-
-# Troubleshooting
-
-## Flask not found
-
-Run:
-
-```powershell
-python -m pip install flask
-```
-
----
-
-## ReportLab not found
-
-Run:
-
-```powershell
-python -m pip install reportlab
-```
-
----
-
-## Check Python version
-
-```powershell
-python --version
-```
-
----
-
-## Check installed packages
-
-```powershell
-pip list
-```
-
----
-
-## Check Flask application
-
-```powershell
-python app.py
-```
-
-Then open:
-
-```text
-http://127.0.0.1:5000
-```
-
----
-
-## Model not found
-
-Check:
+The trained model is stored in:
 
 ```text
 models/
 ```
 
-Expected files:
+Before deploying or presenting the project as a production prediction system, the model should be trained using a sufficiently large and representative dataset.
+
+---
+
+## 🔍 Feature Engineering
+
+The current video feature set includes:
 
 ```text
-virality_model.joblib
-virality_scaler.joblib
+duration
+fps
+width
+height
+motion_score
+scene_changes
+scene_change_rate
+face_count
+face_presence_ratio
+brightness
+contrast
+hook_intensity
+pacing_score
 ```
 
-If the model has not been trained, run the model-training process first.
+Additional content/audio features can be combined with the visual features to improve the prediction pipeline.
 
 ---
 
-## Dataset problems
+## ⚠️ Limitations
 
-Check:
+The system has several practical limitations:
 
-```text
-data/dataset_manifest.csv
-data/training_data.csv
-```
-
-Make sure the dataset contains valid numeric target values and valid video paths.
-
----
-
-# Current Project Status
-
-The current prototype supports:
-
-* Video upload
-* Video feature extraction
-* Computer vision analysis
-* ML-based prediction
-* Virality score
-* Estimated views
-* Recommendations
-* SQLite history
-* Thumbnail generation
-* PDF report generation
-* Flask web interface
-
-The project is currently under active development.
+1. Virality cannot be guaranteed from video features alone.
+2. Prediction quality depends heavily on the quality and size of the training dataset.
+3. Person detection and face detection are different tasks.
+4. Small, occluded, back-facing, or extreme-angle faces may not be detected.
+5. CPU inference can be slower than GPU inference.
+6. Estimated views are model predictions, not guaranteed platform metrics.
+7. Social-media algorithms change over time and vary between platforms.
 
 ---
 
-# Future Improvements
+## 🔮 Future Improvements
 
-Potential future improvements include:
+Potential improvements include:
 
-* Larger and more diverse training dataset
-* Better face detection
-* Improved scene detection
-* Audio feature extraction
-* Speech analysis
-* Sentiment analysis
-* OCR/text extraction
-* Object detection
-* Better hook analysis
-* Social-media-specific prediction models
-* More advanced recommendation system
-* Model evaluation dashboard
-* Cross-validation and model comparison
-* Creator/category-specific predictions
-* Deployment to a production server
+* Larger real-world training dataset
+* Better target-variable engineering
+* Dedicated neural face detector
+* Crowd/person tracking across frames
+* Object detection and scene understanding
+* Better hook detection
+* Multilingual NLP
+* Advanced sentiment analysis
+* Transformer-based transcript analysis
+* Platform-specific prediction models
+* YouTube/Instagram/TikTok analytics integration
+* Model explainability
+* Prediction confidence intervals
+* Continuous model retraining
+* GPU acceleration
+* Real-time video analysis
 
 ---
 
-# Disclaimer
+## 🔐 Privacy
 
-This project is intended for experimentation, research, and demonstration of video analytics and machine-learning techniques.
+Uploaded videos may contain personal or sensitive information.
 
-The generated virality score and estimated views are model-based estimates and should not be interpreted as guaranteed future performance.
+For production deployment:
+
+* Secure uploaded files
+* Limit file size
+* Validate file types
+* Delete temporary files when processing is complete
+* Avoid storing unnecessary user data
+* Protect database access
+* Add authentication where required
+
+---
+
+## 👩‍💻 Author
+
+**Palak Sharma**
+
+B.Tech — Artificial Intelligence & Machine Learning
+
+---
+
+## 📌 Project
+
+**AI Virality Predictor – Video Analytics and Prediction System**
+
+Built with Python, Flask, Computer Vision, NLP/ASR, and Machine Learning.
