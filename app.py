@@ -4,7 +4,6 @@ import traceback
 import tempfile
 import subprocess
 import wave
-from flask import send_file
 
 import numpy as np
 import imageio_ffmpeg
@@ -938,12 +937,20 @@ def perform_complete_analysis(
         or ""
     ).strip()
 
-    # --------------------------------------------------------
+# --------------------------------------------------------
     # 4. CONTENT
     # --------------------------------------------------------
 
+    duration = safe_float(
+        video_features.get(
+            "duration",
+            0
+        )
+    )
+
     content_features = analyze_content(
-        transcript
+        transcript,
+        duration=duration
     )
 
     content_features = safe_dict(
@@ -982,12 +989,7 @@ def perform_complete_analysis(
         )
     )
 
-    duration = safe_float(
-        video_features.get(
-            "duration",
-            0
-        )
-    )
+   
 
     platform_features = analyze_platform(
         platform,
@@ -1129,7 +1131,7 @@ def perform_complete_analysis(
 
 
 # ============================================================
-# HOME
+# index
 # ============================================================
 
 @app.route("/")
@@ -1380,6 +1382,11 @@ def analyze():
             "transcript",
             ""
         ),
+        transcript_result=analysis.get(
+            "transcript_result",
+            {}
+        ),
+
 
         creator_features=analysis.get(
             "creator_features",
@@ -1538,6 +1545,7 @@ def analysis_detail(
             ""
         ),
 
+
         creator_features=analysis_data.get(
             "creator_features",
             {}
@@ -1667,7 +1675,7 @@ def report(analysis_id):
         # =========================================================
 
         analysis = get_analysis_by_id(analysis_id)
-
+       
         if not analysis:
             flash("Analysis record not found.")
             return redirect(url_for("history"))
@@ -1733,18 +1741,31 @@ def report(analysis_id):
         print("PDF path:", pdf_path)
         print("=" * 60)
 
+        
+
         # =========================================================
         # READ ANALYSIS DATA
         # =========================================================
 
         if isinstance(analysis, dict):
 
-            analysis_data = analysis
+            # get_analysis_by_id() returns:
+            # {
+            #     "id": ...,
+            #     "filename": ...,
+            #     "timestamp": ...,
+            #     "analysis_data": {...}
+            # }
+
+            analysis_data = analysis.get(
+                "analysis_data",
+                {}
+            )
 
         else:
 
             # -----------------------------------------------------
-            # SQLAlchemy / object based result
+            # Object based result
             # -----------------------------------------------------
 
             if hasattr(
@@ -1760,6 +1781,7 @@ def report(analysis_id):
                 ):
 
                     try:
+
                         analysis_data = json.loads(
                             raw_data
                         )
@@ -1783,11 +1805,21 @@ def report(analysis_id):
 
                 analysis_data = {}
 
+
         if not isinstance(
             analysis_data,
             dict
         ):
+
             analysis_data = {}
+
+
+        print("=" * 60)
+        print("PDF DATA EXTRACTED")
+        print("Video Features:", analysis_data.get("video_features", {}))
+        print("Prediction:", analysis_data.get("prediction", {}))
+        print("Audio Features:", analysis_data.get("audio_features", {}))
+        print("=" * 60)
 
         # =========================================================
         # EXTRACT DATA
